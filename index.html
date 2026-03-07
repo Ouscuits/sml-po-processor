@@ -1778,6 +1778,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('gApiKey').addEventListener('input', function() {
     document.getElementById('qApiKey').value = this.value;
   });
+  // Load API key from URL parameter ?key=...
+  const urlKey = new URLSearchParams(window.location.search).get('key');
+  if (urlKey) {
+    document.getElementById('qApiKey').value = urlKey;
+    document.getElementById('gApiKey').value = urlKey;
+  }
 });
 </script>
 </div><!-- /app-wrapper -->
