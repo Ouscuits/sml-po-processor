@@ -376,7 +376,7 @@ select { cursor: pointer; }
 <div class="step-panel section-hidden" id="panel-3">
   <div class="card">
     <h2>Composition</h2>
-    <p class="subtitle">Each part must total 100%. Only approved fibers from Zara's list.</p>
+    <p class="subtitle">Optional. If available, each part must total 100%. Only approved fibers from Zara's list.</p>
     <div id="compositionContainer"></div>
     <button class="add-row-btn" onclick="addCompositionPart()">+ Add Part</button>
   </div>
@@ -397,6 +397,7 @@ select { cursor: pointer; }
   </div>
   <div class="btn-group">
     <button class="btn btn-secondary" onclick="goToStep(2)">Back</button>
+    <button class="btn btn-secondary" onclick="renderSizeRangeStep(); goToStep(4)">Skip</button>
     <button class="btn btn-primary" onclick="confirmComposition()">Confirm & Continue</button>
   </div>
 </div>
@@ -1514,18 +1515,26 @@ function addAdditionalCare() {
 }
 
 function confirmComposition() {
-  for (const p of orderData.compositionParts) {
-    const total = p.fibers.reduce((s, f) => s + (f.percentage || 0), 0);
-    if (total !== 100) {
-      showToast(p.part + ' composition must total 100% (currently ' + total + '%)', 'warning');
-      return;
-    }
-    for (const f of p.fibers) {
-      if (!f.fiber) {
-        showToast('Please select a fiber for all composition rows in ' + p.part, 'warning');
+  // Validate only if user has entered composition data
+  const hasData = orderData.compositionParts.some(p => p.fibers.some(f => f.fiber));
+  if (hasData) {
+    for (const p of orderData.compositionParts) {
+      const hasAnyFiber = p.fibers.some(f => f.fiber);
+      if (!hasAnyFiber) continue; // skip empty parts
+      const total = p.fibers.reduce((s, f) => s + (f.percentage || 0), 0);
+      if (total !== 100) {
+        showToast(p.part + ' composition must total 100% (currently ' + total + '%)', 'warning');
         return;
       }
+      for (const f of p.fibers) {
+        if (f.fiber && !f.percentage) {
+          showToast('Please enter a percentage for ' + f.fiber + ' in ' + p.part, 'warning');
+          return;
+        }
+      }
     }
+    // Remove empty parts
+    orderData.compositionParts = orderData.compositionParts.filter(p => p.fibers.some(f => f.fiber));
   }
   renderSizeRangeStep();
   goToStep(4);
