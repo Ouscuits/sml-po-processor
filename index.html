@@ -700,8 +700,8 @@ CONTEXT: You process purchase orders for textile labels (price stickers, hang ta
 Extract ALL the following information and return ONLY a valid JSON object (no markdown, no backticks):
 
 {
-  "poNumber": "PO number exactly as shown (format #####-D for South hemisphere, #####-25 or #####-26 etc for North)",
-  "hemisphere": "North or South",
+  "poNumber": "PO number exactly as shown (e.g., 67284-D, 10892-25, 76427-D)",
+  "hemisphere": "North or South — determined by CURRENCIES not PO suffix (AUD/CLP/BRL=South, GBP/USD/EUR=North)",
   "supplier": "supplier name (text BEFORE the hyphen in Supplier field)",
   "supplierId": "5-digit code AFTER the hyphen in Supplier field",
   "season": "season in English (translate if Spanish: V/Verano=S/Summer, I/Invierno=W/Winter). Format: S 2026 or W 2026",
@@ -731,23 +731,65 @@ Extract ALL the following information and return ONLY a valid JSON object (no ma
 }
 
 CRITICAL RULES:
-1. PO NUMBER: Located under "Order Nr" or "Pedido Nr". Format #####-D (South) or #####-25/26 (North).
-2. SUPPLIER: Under "Supplier" header. Name is before the hyphen, 5-digit ID after.
-3. SEASON: Under "Season" or "Temporada". Translate Spanish: Verano/V=Summer/S, Invierno/I=Winter/W.
-4. ARTICLE: Under "ARTICLE" in grey box. Format ####/###. First 4 digits = ModelID, last 3 = QualityID.
-5. DESCRIPTION: Under "DESCRIPTION" in grey box next to ARTICLE.
-6. MADE IN: Under "MARKET OF ORIGIN". Must be a country name in English.
-7. RFID: Look for "THIS GARMENT HAS A RFID LABEL" text and red alarm symbol with "RFID ALARM & INVENTORY".
-8. PRICES - Find them in PVP section. Look for colored stripes:
-   - Blue+Red system: blue stripe = BluePrice, red stripe = RedPrice, white stripe = PrintedPrices
-   - Black system: black stripe = BlackPrice, white stripe = PrintedPrices
-   - North: PrintedPrice1=GBP, PrintedPrice2=USD, Blue/Red/Black=EUR
-   - South: PrintedPrice1=BRL, no PrintedPrice2, Blue=CLP (ignore decimals), Red=AUD
-9. TOTAL ORDER TABLE: Find the table with colors as rows and sizes as columns. Extract each color code (3 digits only), all sizes, and quantities per cell.
-10. LABEL REFERENCES: Below the order table. Only include codes starting with SP (Sticker Price), HP (Hang Tag Price), CL (Care Label), ST (Sticker), WT (Waist Tag) where the 3rd character is Z (for Zara). IGNORE CL references CLZCALL010 through CLZCALL019. For each ref, note if RFID symbol appears above it.
-11. COMPOSITION: If found under "COMPOSITION'S INFORMATION", extract parts, fibers with percentages, and exceptions. Under "CARE INSTRUCTIONS", extract washing/care instructions. Set hasComposition=true. If not found, set hasComposition=false.
-12. All text output must be in ENGLISH. Translate Spanish if needed.
-13. Use DOT notation for decimal numbers (e.g., 22.95 not 22,95).`;
+1. PO NUMBER: Located under "Order Nr" / "N PED." / "Pedido Nr". Format is always 5 digits + hyphen + suffix (e.g., 67284-D, 10892-25, 76427-D). Extract it EXACTLY as shown.
+
+2. HEMISPHERE — IMPORTANT: Do NOT determine hemisphere from the PO number suffix alone. Determine it from the CURRENCIES shown in the PVP section:
+   - If prices include AUD, CLP and/or BRL → hemisphere is SOUTH
+   - If prices include GBP, USD and EUR (without AUD/CLP/BRL) → hemisphere is NORTH
+   Examples: PO "10892-25" with AUD/CLP/BRL prices = SOUTH. PO "67284-D" with GBP/USD/EUR prices = NORTH.
+
+3. SUPPLIER: Under "Supplier" / "Proveedor" header. The supplier name is everything BEFORE the last hyphen followed by the 5-digit code. Example: "KAROONI KNIT COMPOSITE, LTD. - 01716" → name="KAROONI KNIT COMPOSITE, LTD.", id="01716".
+
+4. SEASON: Under "Season" / "Temporada". Translate Spanish: V/Verano = S (Summer), I/Invierno = W (Winter). Format: "S 2026" or "W 2025".
+
+5. ARTICLE: Under "ARTICLE" / "ARTICULO" in grey box. Format ####/###.
+
+6. DESCRIPTION: Under "DESCRIPTION" / "DESCRIPCION" in grey box next to ARTICLE.
+
+7. MADE IN: Under "MARKET OF ORIGIN" / "MERCADO DE ORIGEN". Country name in English.
+
+8. RFID: Look for "THIS GARMENT HAS A RFID LABEL" or "ESTA PRENDA TIENE ETIQUETA RFID" text, plus "RFID ALARM & INVENTORY" / "RFID ALARMA & INVENTARIO" badges.
+
+9. PRICES — Read ALL prices from the PVP section. The PVP section lists prices with their currency codes. Map them as follows:
+
+   NORTH HEMISPHERE (prices in GBP, USD, EUR):
+   - There are ALWAYS two pricing options, both mutually exclusive:
+     OPTION A (Blue+Red): TWO different EUR prices. The HIGHER EUR = BluePrice, the LOWER EUR = RedPrice.
+     OPTION B (Black): Only ONE EUR price = BlackPrice.
+   - GBP price → PrintedPrice1 (currency: GBP)
+   - USD price → PrintedPrice2 (currency: USD)
+   - If two EUR prices exist → priceSystem = "blue_red", higher EUR = BluePrice (currency: EUR), lower EUR = RedPrice (currency: EUR)
+   - If only one EUR price → priceSystem = "black", that EUR = BlackPrice (currency: EUR)
+
+   SOUTH HEMISPHERE (prices in AUD, CLP, BRL):
+   - priceSystem is ALWAYS "blue_red" for South
+   - AUD price → RedPrice (currency: AUD). ALWAYS present for South.
+   - CLP price → BluePrice (currency: CLP). Ignore decimals (no cents in CLP).
+   - BRL price → PrintedPrice1 (currency: BRL)
+   - PrintedPrice2 is empty for South
+   - BlackPrice is empty for South
+
+   IMPORTANT: Some POs list prices as flat text without visible colored stripes (e.g., "12.95 EUR / 22.90 USD / 12.99 GBP"). The rules above still apply — determine the system from the currencies present.
+   Always use DOT notation for decimals (e.g., 22.95 not 22,95). For CLP, strip decimals entirely (29990 not 29990.00).
+
+10. TOTAL ORDER TABLE: Under "TOTAL ORDER" / "TOTAL PEDIDO". Colors as rows (extract 3-digit code only), sizes as columns. Sizes can be letters (S,M,L,XL), numbers (34,36,38), months (03,06,09,12,18) or years (2-3,3-4,4-5). Extract every quantity per color+size cell.
+
+11. LABEL REFERENCES: Below the order table. Look for bold reference codes with descriptions. Only include codes where:
+    - First 2 chars are SP, HP, CL, ST, or WT
+    - 3rd character is Z (for Zara)
+    - IGNORE CL references CLZCALL010 through CLZCALL019
+    - IGNORE references starting with PL, WP, MR, RA, or any prefix not in [SP, HP, CL, ST, WT]
+    For each ref, check if "RFID ALARM & INVENTORY" badge appears near it → isRFID=true.
+
+12. COMPOSITION: If found under "COMPOSITION'S INFORMATION" / "INFORMACION DE COMPOSICION", extract:
+    - Parts (OUTER SHELL/EXTERIOR, LINING/FORRO, FILLING/RELLENO)
+    - Fibers with percentages (translate to English: ALGODON=COTTON, POLIESTER=POLYESTER, etc.)
+    - Exceptions (e.g., "Incluye microcontenido..." = "INCLUDING...MICROCONTENT")
+    Under "CARE INSTRUCTIONS" / "INSTRUCCIONES DE CONSERVACION", extract care instructions.
+    Set hasComposition=true if found, false if not.
+
+13. All output text must be in ENGLISH. Translate Spanish terms.
+14. Use DOT notation for all decimal numbers except CLP (no decimals).`;
 
 const SYSTEM_PROMPT_ANNEX = `You extract composition and care data from Zara technical annex / care label layout PDFs.
 
