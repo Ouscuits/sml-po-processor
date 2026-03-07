@@ -22,12 +22,45 @@
   --radius: 10px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { 
-  font-family: 'DM Sans', sans-serif; 
-  background: var(--bg); 
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
   color: var(--text);
   min-height: 100vh;
 }
+.sml-home {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+.sml-home video {
+  width: 360px;
+  border-radius: 10px;
+  margin-bottom: 24px;
+}
+.sml-home .start-btn {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 14px 36px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #fff;
+  background: var(--primary);
+  transition: all 0.2s;
+}
+.sml-home .start-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(79,140,255,0.3);
+}
+.app-wrapper { display: none; }
+.app-wrapper.show { display: block; }
+.logo-top { position: fixed; top: 10px; right: 16px; z-index: 200; cursor: pointer; }
+.logo-top img { height: 288px; }
 .app-header {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
@@ -388,6 +421,16 @@ textarea { resize: vertical; min-height: 80px; }
 </head>
 <body>
 
+<div class="sml-home" id="smlHome">
+  <video src="sml-animation.mp4" autoplay muted loop playsinline></video>
+  <button class="start-btn" onclick="enterApp()">PO Processor</button>
+</div>
+
+<div class="logo-top" id="logoTop" style="display:none" onclick="goHome()">
+  <img src="sml-primary.svg" alt="SML">
+</div>
+
+<div class="app-wrapper" id="appWrapper">
 <div class="app-header">
   <svg width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#4f8cff"/><text x="16" y="22" text-anchor="middle" fill="#fff" font-size="14" font-weight="700" font-family="DM Sans">SML</text></svg>
   <h1>PO Processor</h1>
@@ -1523,10 +1566,23 @@ function showToast(msg, type) {
   setTimeout(() => t.remove(), 4000);
 }
 
+// SML Home / App navigation
+function enterApp() {
+  document.getElementById('smlHome').style.display = 'none';
+  document.getElementById('appWrapper').classList.add('show');
+  document.getElementById('logoTop').style.display = '';
+}
+function goHome() {
+  document.getElementById('appWrapper').classList.remove('show');
+  document.getElementById('logoTop').style.display = 'none';
+  document.getElementById('smlHome').style.display = '';
+}
+
 // Init
 document.addEventListener('DOMContentLoaded', () => {
   setupFileHandlers();
 });
 </script>
+</div><!-- /app-wrapper -->
 </body>
 </html>
