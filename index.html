@@ -41,11 +41,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .app-header h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; }
 .app-header .badge { background: var(--primary); color: #fff; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
 
-/* Mode Selector */
-.mode-bar { display: flex; justify-content: center; gap: 12px; padding: 20px 32px; background: var(--surface); border-bottom: 1px solid var(--border); }
-.mode-btn { font-family: 'DM Sans'; font-size: 14px; font-weight: 600; padding: 10px 28px; border: 2px solid var(--border); border-radius: 30px; background: transparent; color: var(--text-muted); cursor: pointer; transition: all 0.2s; }
-.mode-btn.active { border-color: var(--primary); color: #fff; background: var(--primary); }
-.mode-btn:hover:not(.active) { border-color: var(--text-muted); color: var(--text); }
+/* (Mode Selector removed) */
 
 /* Stepper */
 .stepper { display: flex; align-items: center; padding: 20px 32px; gap: 8px; background: var(--surface); border-bottom: 1px solid var(--border); overflow-x: auto; }
@@ -104,7 +100,7 @@ select { cursor: pointer; }
 
 /* Tables */
 .qty-table { overflow-x: auto; margin: 12px 0; }
-.qty-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.qty-table table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .qty-table th, .qty-table td { padding: 8px 12px; border: 1px solid var(--border); text-align: center; }
 .qty-table th { background: var(--surface2); font-weight: 600; font-size: 11px; text-transform: uppercase; }
 .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -153,18 +149,8 @@ select { cursor: pointer; }
 .progress-bar { width: 100%; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; margin: 16px 0; }
 .progress-fill { height: 100%; background: var(--primary); border-radius: 3px; transition: width 0.3s; width: 0%; }
 
-/* Quick Extract specific */
-.batch-log { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; max-height: 200px; overflow-y: auto; font-family: 'JetBrains Mono'; font-size: 12px; color: var(--text-muted); margin: 16px 0; }
-.batch-log .log-entry { margin-bottom: 4px; }
-.batch-log .log-ok { color: var(--success); }
-.batch-log .log-err { color: var(--danger); }
-.batch-log .log-info { color: var(--primary); }
-
 /* CSV Preview scroll */
 .csv-scroll { max-height: 400px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
-
-/* API key input */
-.api-key-input { font-family: 'JetBrains Mono'; letter-spacing: 1px; }
 
 /* Responsive */
 @media (max-width: 768px) {
@@ -173,8 +159,7 @@ select { cursor: pointer; }
   .upload-grid { grid-template-columns: 1fr; }
 }
 
-/* Upload grid for Quick Extract */
-.upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+/* (Quick Extract grid removed) */
 </style>
 </head>
 <body>
@@ -194,77 +179,8 @@ select { cursor: pointer; }
   </div>
 </div>
 
-<!-- MODE SELECTOR -->
-<div class="mode-bar">
-  <button class="mode-btn active" onclick="switchMode('quick')" id="modeQuick">Quick Extract</button>
-  <button class="mode-btn" onclick="switchMode('guided')" id="modeGuided">Guided Process</button>
-</div>
-
-<!-- ===== QUICK EXTRACT MODE ===== -->
-<div id="quickMode" class="main-content">
-  <div class="card">
-    <h2>API Configuration</h2>
-    <p class="subtitle">Enter your Claude API key. Stored in session only.</p>
-    <div class="form-group">
-      <label>Claude API Key</label>
-      <input type="password" id="qApiKey" class="api-key-input" placeholder="sk-ant-api03-...">
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="upload-grid">
-      <div>
-        <h2>Order PDFs</h2>
-        <p class="subtitle">Upload one or more Zara PO documents</p>
-        <div class="drop-zone" id="qOrderDrop" onclick="document.getElementById('qOrderInput').click()">
-          <div class="drop-zone-label">Drop PO files here or click to browse</div>
-        </div>
-        <input type="file" id="qOrderInput" multiple accept=".pdf" style="display:none">
-        <div class="thumb-strip" id="qOrderFiles"></div>
-      </div>
-      <div>
-        <h2>Technical Annexes</h2>
-        <p class="subtitle">Optional: composition & care label files</p>
-        <div class="drop-zone" id="qAnnexDrop" onclick="document.getElementById('qAnnexInput').click()">
-          <div class="drop-zone-label">Drop annex files here or click to browse</div>
-        </div>
-        <input type="file" id="qAnnexInput" multiple accept=".pdf" style="display:none">
-        <div class="thumb-strip" id="qAnnexFiles"></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="card" id="qLgCard">
-    <h2>Label Generator Screenshots</h2>
-    <p class="subtitle">Optional: upload screenshots to auto-detect size ranges</p>
-    <div class="drop-zone" id="qLgDrop" onclick="document.getElementById('qLgInput').click()">
-      <div class="drop-zone-label">Drop label screenshots here or click to browse</div>
-    </div>
-    <input type="file" id="qLgInput" multiple accept="image/*" style="display:none">
-    <div class="thumb-strip" id="qLgFiles"></div>
-  </div>
-
-  <div class="btn-group">
-    <button class="btn btn-primary" id="qProcessBtn" onclick="quickExtractAll()" disabled>Extract All</button>
-    <button class="btn btn-secondary" onclick="quickClear()">Clear All</button>
-  </div>
-
-  <div class="progress-bar section-hidden" id="qProgress"><div class="progress-fill" id="qProgressFill"></div></div>
-  <div class="batch-log section-hidden" id="qLog"></div>
-
-  <div class="card section-hidden" id="qResultsCard">
-    <h2>Extraction Results</h2>
-    <div id="qResultsSummary" class="subtitle"></div>
-    <div class="csv-scroll" id="qResultsTable"></div>
-    <div class="btn-group">
-      <button class="btn btn-success" onclick="downloadQuickCSV()">Download CSV</button>
-      <button class="btn btn-secondary" onclick="downloadQuickExcel()">Download Excel</button>
-    </div>
-  </div>
-</div>
-
-<!-- ===== GUIDED PROCESS MODE ===== -->
-<div id="guidedMode" class="section-hidden">
+<!-- ===== GUIDED PROCESS MODE (only mode) ===== -->
+<div id="guidedMode">
 
 <div class="stepper" id="stepper">
   <div class="step-item active" data-step="0"><div class="step-num">1</div><span class="step-label">Setup</span></div>
@@ -284,14 +200,6 @@ select { cursor: pointer; }
 
 <!-- STEP 0: SETUP -->
 <div class="step-panel" id="panel-0">
-  <div class="card">
-    <h2>API Configuration</h2>
-    <p class="subtitle">Enter your Claude API key to enable AI-powered PDF extraction.</p>
-    <div class="form-group">
-      <label>Claude API Key</label>
-      <input type="password" id="gApiKey" class="api-key-input" placeholder="sk-ant-api03-...">
-    </div>
-  </div>
   <div class="card">
     <h2>Brand Selection</h2>
     <p class="subtitle">Select the brand for this PO.</p>
@@ -405,12 +313,31 @@ select { cursor: pointer; }
 <div class="step-panel section-hidden" id="panel-4">
   <div class="card">
     <h2>Size Range</h2>
-    <p class="subtitle">Select the size range that matches this order.</p>
-    <div class="grid-2">
+    <p class="subtitle">Select the garment type, size range type, and size range that match this order.</p>
+    <div class="grid-3">
+      <div class="form-group">
+        <label>Garment Type</label>
+        <select id="garmentTypeFilter" onchange="filterSizeRanges()">
+          <option value="">-- All --</option>
+          <option value="UPPER">UPPER</option>
+          <option value="LOWER">LOWER</option>
+          <option value="ACCESSORIES">ACCESSORIES</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Size Range Type</label>
+        <select id="sizeRangeTypeFilter" onchange="filterSizeRanges()">
+          <option value="">-- All --</option>
+          <option value="BY LETTERS">BY LETTERS</option>
+          <option value="BY NUMBERS">BY NUMBERS</option>
+        </select>
+      </div>
       <div class="form-group">
         <label>Size Range</label>
         <select id="sizeRangeSelect" onchange="updateSizeRangePreview()"></select>
       </div>
+    </div>
+    <div class="grid-2" style="margin-top:8px;">
       <div class="form-group">
         <label>First / Last Size</label>
         <div style="display:flex;gap:8px;">
@@ -423,7 +350,7 @@ select { cursor: pointer; }
   </div>
   <div class="card">
     <h2>Label Generator Analysis</h2>
-    <p class="subtitle">If you uploaded label screenshots, analyze them to auto-detect the size range.</p>
+    <div id="lgAnalysisMsg"></div>
     <button class="btn btn-secondary" id="btnAnalyzeLG" onclick="analyzeLabelGenerator()" style="display:none">Analyze Screenshots</button>
   </div>
   <div class="btn-group">
@@ -456,6 +383,7 @@ select { cursor: pointer; }
 
 </div><!-- /app-wrapper -->
 
+<script src="config.js"></script>
 <script>
 // ============================================================
 // REFERENCE DATA (compressed from Zara Excel files)
@@ -465,17 +393,11 @@ const REF_DATA = {"seasons":{"V 2026":"S 2026","S 2026":"S 2026","I 2026":"W 202
 // ============================================================
 // STATE
 // ============================================================
-let currentMode = 'quick';
 let currentStep = 0;
 let poFile = null, poBase64 = null;
 let compoFile = null, compoBase64 = null;
 let lgFiles = [];
 let orderData = {};
-
-// Quick Extract state
-let qOrderFiles = [], qAnnexFiles = [], qLgFiles = [];
-let qResults = [];
-let techLibrary = {};
 
 // ============================================================
 // SML HOME / APP NAVIGATION
@@ -490,18 +412,7 @@ function goHome() {
 }
 
 // ============================================================
-// MODE SWITCHING
-// ============================================================
-function switchMode(mode) {
-  currentMode = mode;
-  document.getElementById('modeQuick').classList.toggle('active', mode === 'quick');
-  document.getElementById('modeGuided').classList.toggle('active', mode === 'guided');
-  document.getElementById('quickMode').classList.toggle('section-hidden', mode !== 'quick');
-  document.getElementById('guidedMode').classList.toggle('section-hidden', mode !== 'guided');
-}
-
-// ============================================================
-// STEPPER (GUIDED MODE)
+// STEPPER
 // ============================================================
 function goToStep(n) {
   currentStep = n;
@@ -582,66 +493,17 @@ function setupFileHandlers() {
     });
   });
 
-  // Quick Extract file handlers
-  setupQuickFileHandlers();
-}
-
-function setupQuickFileHandlers() {
-  const setupDrop = (dropId, inputId, listId, storageArr, type) => {
-    const drop = document.getElementById(dropId);
-    const input = document.getElementById(inputId);
-
-    input.addEventListener('change', async (e) => {
-      for (const f of e.target.files) {
-        const b64 = await fileToBase64(f);
-        storageArr.push({ name: f.name, base64: b64, type: f.type || 'application/pdf' });
-        renderFileList(listId, storageArr);
-      }
-      updateQuickProcessBtn();
-    });
-
-    drop.addEventListener('dragover', e => { e.preventDefault(); drop.style.borderColor = 'var(--primary)'; });
-    drop.addEventListener('dragleave', () => { drop.style.borderColor = ''; });
-    drop.addEventListener('drop', e => {
-      e.preventDefault();
-      drop.style.borderColor = '';
-      const dt = new DataTransfer();
-      for (const f of e.dataTransfer.files) dt.items.add(f);
-      input.files = dt.files;
-      input.dispatchEvent(new Event('change'));
-    });
-  };
-
-  setupDrop('qOrderDrop', 'qOrderInput', 'qOrderFiles', qOrderFiles, 'pdf');
-  setupDrop('qAnnexDrop', 'qAnnexInput', 'qAnnexFiles', qAnnexFiles, 'pdf');
-  setupDrop('qLgDrop', 'qLgInput', 'qLgFiles', qLgFiles, 'image');
-}
-
-function renderFileList(containerId, arr) {
-  const container = document.getElementById(containerId);
-  container.innerHTML = arr.map((f, i) =>
-    '<div class="thumb-item"><span>' + f.name + '</span><span class="remove-thumb" onclick="removeFile(\'' + containerId + '\',' + i + ')">x</span></div>'
-  ).join('');
-}
-
-function removeFile(containerId, idx) {
-  if (containerId === 'qOrderFiles') qOrderFiles.splice(idx, 1);
-  else if (containerId === 'qAnnexFiles') qAnnexFiles.splice(idx, 1);
-  else if (containerId === 'qLgFiles') qLgFiles.splice(idx, 1);
-  renderFileList(containerId, containerId === 'qOrderFiles' ? qOrderFiles : containerId === 'qAnnexFiles' ? qAnnexFiles : qLgFiles);
-  updateQuickProcessBtn();
-}
-
-function updateQuickProcessBtn() {
-  document.getElementById('qProcessBtn').disabled = qOrderFiles.length === 0;
 }
 
 // ============================================================
 // CLAUDE API
 // ============================================================
 async function callClaude(systemPrompt, userContent, retries = 1) {
-  const apiKey = currentMode === 'quick' ? document.getElementById('qApiKey').value : document.getElementById('gApiKey').value;
-  if (!apiKey) throw new Error('No API key provided');
+  const apiKey = window.CLAUDE_API_KEY || '';
+  if (!apiKey) {
+    showToast('No API key configured. Please add your key to config.js', 'error');
+    throw new Error('No API key configured. Add CLAUDE_API_KEY to config.js');
+  }
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
@@ -833,287 +695,7 @@ RULES:
 - Extract prices if visible (blue/red stripe prices, printed prices)`;
 
 // ============================================================
-// QUICK EXTRACT MODE
-// ============================================================
-async function quickExtractAll() {
-  const apiKey = document.getElementById('qApiKey').value;
-  if (!apiKey) { showToast('Please enter your Claude API key', 'warning'); return; }
-
-  const log = document.getElementById('qLog');
-  const progress = document.getElementById('qProgress');
-  const progressFill = document.getElementById('qProgressFill');
-
-  log.classList.remove('section-hidden');
-  progress.classList.remove('section-hidden');
-  log.innerHTML = '';
-  qResults = [];
-  techLibrary = {};
-
-  const totalSteps = qAnnexFiles.length + qOrderFiles.length + (qLgFiles.length > 0 ? 1 : 0);
-  let step = 0;
-
-  const logMsg = (msg, cls) => {
-    log.innerHTML += '<div class="log-entry ' + (cls || '') + '">' + msg + '</div>';
-    log.scrollTop = log.scrollHeight;
-  };
-
-  try {
-    // Step 1: Process Annexes
-    for (const annex of qAnnexFiles) {
-      logMsg('Processing annex: ' + annex.name + '...', 'log-info');
-      step++;
-      progressFill.style.width = (step / totalSteps * 100) + '%';
-
-      try {
-        const resp = await callClaude(SYSTEM_PROMPT_ANNEX, [
-          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: annex.base64 } },
-          { type: 'text', text: 'Extract composition and care data from this technical annex.' }
-        ]);
-        const data = extractJSON(resp);
-        if (data.article) {
-          const key = data.article.replace('/', '-');
-          techLibrary[key] = data;
-          logMsg('  Annex indexed: ' + data.article, 'log-ok');
-        }
-      } catch (e) {
-        logMsg('  Annex failed: ' + e.message, 'log-err');
-      }
-    }
-
-    // Step 2: Process Label Generator screenshots
-    if (qLgFiles.length > 0) {
-      logMsg('Analyzing label generator screenshots...', 'log-info');
-      step++;
-      progressFill.style.width = (step / totalSteps * 100) + '%';
-      // We'll use this data for size range enrichment later
-    }
-
-    // Step 3: Process Orders
-    for (const order of qOrderFiles) {
-      logMsg('Extracting order: ' + order.name + '...', 'log-info');
-      step++;
-      progressFill.style.width = (step / totalSteps * 100) + '%';
-
-      try {
-        const resp = await callClaude(SYSTEM_PROMPT_GENERAL, [
-          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: order.base64 } },
-          { type: 'text', text: 'Extract all information from this Zara PO. Return ONLY the JSON object.' }
-        ]);
-        const data = extractJSON(resp);
-
-        // Merge with annex data if available
-        const artKey = (data.article || '').replace('/', '-');
-        const annex = techLibrary[artKey];
-        if (annex && !data.hasComposition) {
-          data.composition = {
-            parts: annex.parts || [],
-            exceptions: annex.exceptions || [],
-            careInstructions: annex.careInstructions || [],
-            additionalCare: annex.additionalCare || []
-          };
-          data.hasComposition = true;
-          logMsg('  Merged with annex data for ' + data.article, 'log-ok');
-        }
-
-        // Determine section
-        const section = detectSection(data.labelRefs || []);
-        const garmentType = classifyGarment(data.description);
-        const modelId = (data.article || '').split('/')[0] || '';
-        const qualityId = (data.article || '').split('/')[1] || '';
-
-        // Build CSV rows
-        const labelRefs = (data.labelRefs || []).filter(r => {
-          const ref = r.ref || '';
-          if (ref.length < 3 || ref[2] !== 'Z') return false;
-          const prefix = ref.substring(0, 2);
-          if (!['SP','HP','CL','ST','WT'].includes(prefix)) return false;
-          if (prefix === 'CL' && /^CLZCALL01[0-9]$/.test(ref)) return false;
-          return true;
-        });
-
-        const compFields = buildCompFieldsFromData(data.composition);
-        const careStr = (data.composition?.careInstructions || []).join('|');
-        const addCareStr = (data.composition?.additionalCare || []).join('|');
-        const excStr = (data.composition?.exceptions || []).join('|');
-
-        for (const lr of labelRefs) {
-          const ref = lr.ref;
-          const prefix = ref.substring(0, 2);
-          const isPrice = ['SP', 'HP'].includes(prefix);
-          const isCL = prefix === 'CL';
-
-          for (const color of (data.colors || [])) {
-            for (const size of (data.sizes || [])) {
-              const qty = data.quantities?.[color.code]?.[size] || 0;
-              if (qty === 0) continue;
-
-              qResults.push({
-                PONumber: data.poNumber || '',
-                ProviderId: data.supplierId || '',
-                ProviderName: data.supplier || '',
-                Season: data.season || '',
-                Section: section,
-                Collection: '',
-                LabelName: ref,
-                AlarmLogo: (isPrice && (data.rfidAlarm || lr.isRFID)) ? 'True' : (isPrice ? 'False' : ''),
-                MadeIn: data.madeIn || '',
-                ModelID: modelId,
-                QualityID: qualityId,
-                ColorID: color.code,
-                GarmentType: garmentType,
-                GarmentDescription: data.description || '',
-                SizeID: size,
-                SizeRange: '',
-                FirstSize: (data.sizes || [])[0] || '',
-                LastSize: (data.sizes || [])[(data.sizes || []).length - 1] || '',
-                SizeQuantity: qty,
-                Hemisphere: data.hemisphere || '',
-                PrintedPrice1: isPrice ? (data.prices?.printed1?.value || '') : '',
-                PrintedPrice1Currency: isPrice ? (data.prices?.printed1?.currency || '') : '',
-                PrintedPrice2: isPrice ? (data.prices?.printed2?.value || '') : '',
-                PrintedPrice2Currency: isPrice ? (data.prices?.printed2?.currency || '') : '',
-                BluePrice: isPrice ? (data.prices?.blue?.value || '') : '',
-                BluePriceCurrency: isPrice ? (data.prices?.blue?.currency || '') : '',
-                RedPrice: isPrice ? (data.prices?.red?.value || '') : '',
-                RedPriceCurrency: isPrice ? (data.prices?.red?.currency || '') : '',
-                BlackPrice: isPrice ? (data.prices?.black?.value || '') : '',
-                BlackPriceCurrency: isPrice ? (data.prices?.black?.currency || '') : '',
-                ...compFields,
-                CareInstructions: (isCL || prefix === 'SP') ? careStr : '',
-                AdditionalCare: (isCL || prefix === 'SP') ? addCareStr : ''
-              });
-            }
-          }
-        }
-
-        logMsg('  Extracted ' + labelRefs.length + ' refs, ' + (data.colors || []).length + ' colors, ' + (data.sizes || []).length + ' sizes', 'log-ok');
-      } catch (e) {
-        logMsg('  Order failed: ' + e.message, 'log-err');
-      }
-    }
-
-    // Show results
-    progressFill.style.width = '100%';
-    logMsg('Done! Total rows: ' + qResults.length, 'log-ok');
-
-    if (qResults.length > 0) {
-      renderQuickResults();
-    }
-  } catch (e) {
-    logMsg('Fatal error: ' + e.message, 'log-err');
-  }
-}
-
-function detectSection(labelRefs) {
-  const priceRefs = (labelRefs || []).filter(r => {
-    const ref = r.ref || '';
-    return ref.startsWith('SP') || ref.startsWith('HP');
-  });
-  for (const pr of priceRefs) {
-    const ref = pr.ref;
-    if (ref.length >= 4) {
-      const s = ref[3].toUpperCase();
-      if (s === 'M') return 'Man';
-      if (s === 'W') return 'Woman';
-      if (s === 'K') return 'Kids';
-    }
-  }
-  // Check all refs
-  for (const lr of (labelRefs || [])) {
-    const ref = lr.ref || '';
-    if (ref.length >= 4) {
-      const s = ref[3].toUpperCase();
-      if (s === 'M') return 'Man';
-      if (s === 'W') return 'Woman';
-      if (s === 'K') return 'Kids';
-    }
-  }
-  return '';
-}
-
-function buildCompFieldsFromData(comp) {
-  const fields = {
-    CompositionOuterShell1: '', CompositionOuterShell2: '', CompositionOuterShell3: '',
-    CompositionLining1: '', CompositionLining2: '', CompositionLining3: '',
-    CompositionFilling1: '', CompositionFilling2: '', CompositionFilling3: '',
-    Exceptions: ''
-  };
-  if (!comp || !comp.parts) return fields;
-
-  for (const p of comp.parts) {
-    const partName = (p.part || '').toUpperCase();
-    const key = partName.includes('LINING') ? 'CompositionLining' :
-                partName.includes('FILLING') ? 'CompositionFilling' : 'CompositionOuterShell';
-    (p.fibers || []).forEach((f, i) => {
-      if (i < 3 && f.fiber && f.percentage) {
-        fields[key + (i + 1)] = f.percentage + '% ' + f.fiber;
-      }
-    });
-  }
-
-  if (comp.exceptions && comp.exceptions.length > 0) {
-    fields.Exceptions = comp.exceptions.filter(e => e).join('|');
-  }
-  return fields;
-}
-
-function renderQuickResults() {
-  const card = document.getElementById('qResultsCard');
-  card.classList.remove('section-hidden');
-  document.getElementById('qResultsSummary').textContent = qResults.length + ' rows extracted from ' + qOrderFiles.length + ' order(s)';
-
-  if (qResults.length === 0) {
-    document.getElementById('qResultsTable').innerHTML = '<div class="warn-banner">No rows generated.</div>';
-    return;
-  }
-
-  const headers = Object.keys(qResults[0]);
-  let html = '<table class="data-table"><thead><tr>';
-  headers.forEach(h => html += '<th style="white-space:nowrap;font-size:11px;">' + h + '</th>');
-  html += '</tr></thead><tbody>';
-  qResults.slice(0, 50).forEach(r => {
-    html += '<tr>';
-    headers.forEach(h => html += '<td style="white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis;font-size:11px;">' + esc(String(r[h] ?? '')) + '</td>');
-    html += '</tr>';
-  });
-  if (qResults.length > 50) html += '<tr><td colspan="' + headers.length + '" style="text-align:center;color:var(--text-muted);">... and ' + (qResults.length - 50) + ' more rows</td></tr>';
-  html += '</tbody></table>';
-  document.getElementById('qResultsTable').innerHTML = html;
-}
-
-function downloadQuickCSV() {
-  if (!qResults.length) return;
-  const headers = Object.keys(qResults[0]);
-  let csv = headers.map(h => '"' + h + '"').join(',') + '\n';
-  qResults.forEach(r => {
-    csv += headers.map(h => '"' + String(r[h] ?? '').replace(/"/g, '""') + '"').join(',') + '\n';
-  });
-  downloadBlob(csv, 'text/csv', 'SML_QuickExtract_' + new Date().toISOString().slice(0,10) + '.csv');
-}
-
-function downloadQuickExcel() {
-  if (!qResults.length || typeof XLSX === 'undefined') { showToast('No data or XLSX not loaded', 'warning'); return; }
-  const ws = XLSX.utils.json_to_sheet(qResults);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'SML_Data');
-  XLSX.writeFile(wb, 'SML_QuickExtract_' + new Date().toISOString().slice(0,10) + '.xlsx');
-}
-
-function quickClear() {
-  qOrderFiles = []; qAnnexFiles = []; qLgFiles = []; qResults = []; techLibrary = {};
-  ['qOrderFiles','qAnnexFiles','qLgFiles'].forEach(id => document.getElementById(id).innerHTML = '');
-  document.getElementById('qLog').classList.add('section-hidden');
-  document.getElementById('qProgress').classList.add('section-hidden');
-  document.getElementById('qResultsCard').classList.add('section-hidden');
-  document.getElementById('qProgressFill').style.width = '0%';
-  document.getElementById('qProcessBtn').disabled = true;
-  document.getElementById('qOrderInput').value = '';
-  document.getElementById('qAnnexInput').value = '';
-  document.getElementById('qLgInput').value = '';
-}
-
-// ============================================================
-// GUIDED MODE: STEP 2 — EXTRACT GENERAL INFO
+// STEP 2 — EXTRACT GENERAL INFO
 // ============================================================
 async function extractGeneralInfo() {
   showLoading('Extracting general information from PO...');
@@ -1322,7 +904,7 @@ function renderOrderTable() {
     for (const s of orderData.sizes) {
       const qty = orderData.quantities[c.code]?.[s] || 0;
       rowTotal += Number(qty);
-      html += '<td><input type="number" value="' + qty + '" style="width:70px;text-align:center;" onchange="orderData.quantities[\'' + c.code + '\'][\'' + s + '\']=Number(this.value)"></td>';
+      html += '<td><input type="number" value="' + qty + '" style="width:100px;text-align:center;font-size:14px;" onchange="orderData.quantities[\'' + c.code + '\'][\'' + s + '\']=Number(this.value)"></td>';
     }
     html += '<td><strong>' + rowTotal + '</strong></td></tr>';
   }
@@ -1390,6 +972,8 @@ function renderCompositionStep() {
   } else if (!orderData.compositionParts || !orderData.compositionParts.length) {
     orderData.compositionParts = [{ part: 'OUTER SHELL', fibers: [{ fiber: '', percentage: 100 }] }];
   }
+  // Reset additional care rows tracker
+  _additionalCareRows = orderData.additionalCare ? orderData.additionalCare.split('|') : [];
   renderCompositionParts();
   renderExceptions();
   renderCareInstructions();
@@ -1457,14 +1041,42 @@ function renderCareInstructions() {
   const container = document.getElementById('careContainer');
   const careTypes = Object.keys(REF_DATA.care_instructions);
   const currentInstr = orderData.careInstructions ? orderData.careInstructions.split('|') : [];
+
+  // If no care data extracted and no annex uploaded, warn user
+  if (currentInstr.filter(v => v.trim()).length === 0 && !compoFile) {
+    showToast('No care instructions extracted. Please fill them manually.', 'warning');
+  }
+
   let html = '';
   careTypes.forEach((type, i) => {
     const opts = REF_DATA.care_instructions[type];
-    const currentVal = currentInstr[i] || '';
+    const currentVal = (currentInstr[i] || '').trim();
+    // Find best match: case-insensitive comparison
+    let bestMatch = '';
+    if (currentVal) {
+      const valLower = currentVal.toLowerCase();
+      // Try exact match first
+      bestMatch = opts.find(o => o.toLowerCase() === valLower) || '';
+      // Try contains match (extracted value in option)
+      if (!bestMatch) bestMatch = opts.find(o => o.toLowerCase().includes(valLower)) || '';
+      // Try option text contained in extracted value
+      if (!bestMatch) bestMatch = opts.find(o => valLower.includes(o.toLowerCase())) || '';
+      // Try matching significant words (3+ chars)
+      if (!bestMatch) {
+        const words = valLower.split(/[\s,;\/]+/).filter(w => w.length >= 3);
+        let maxScore = 0;
+        for (const o of opts) {
+          const oLower = o.toLowerCase();
+          const score = words.filter(w => oLower.includes(w)).length;
+          if (score > maxScore) { maxScore = score; bestMatch = o; }
+        }
+        if (maxScore === 0) bestMatch = '';
+      }
+    }
     html += '<div class="field-row"><span class="field-label">' + type + '</span><div class="field-value">';
     html += '<select id="care_'+type+'" onchange="updateCareInstructions()"><option value="">-- Select --</option>';
     opts.forEach(o => {
-      html += '<option value="'+esc(o)+'" '+(currentVal && o.includes(currentVal.substring(0,15))?'selected':'')+'>'+o+'</option>';
+      html += '<option value="'+esc(o)+'" '+(bestMatch === o ? 'selected' : '')+'>'+o+'</option>';
     });
     html += '</select></div></div>';
   });
@@ -1477,14 +1089,25 @@ function updateCareInstructions() {
   orderData.careInstructions = vals.join('|');
 }
 
+// Track additional care rows as an array (avoids losing empty entries via split/join)
+let _additionalCareRows = [];
+
 function renderAdditionalCareInstructions() {
   const container = document.getElementById('additionalCareContainer');
-  const addOpts = Object.keys(REF_DATA.additional_instructions).map(a => '<option value="'+a+'">'+a+'</option>').join('');
-  const current = orderData.additionalCare ? orderData.additionalCare.split('|') : [];
+  const addOpts = Object.keys(REF_DATA.additional_instructions).map(a => '<option value="'+esc(a)+'">'+a+'</option>').join('');
+  // Sync from orderData string on first render
+  if (_additionalCareRows.length === 0 && orderData.additionalCare) {
+    _additionalCareRows = orderData.additionalCare.split('|');
+  }
   let html = '';
-  current.forEach((ac, i) => {
+  _additionalCareRows.forEach((ac, i) => {
     html += '<div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">';
-    html += '<select style="flex:1;" onchange="updateAdditionalCareList('+i+',this.value)"><option value="">-- Select --</option>' + addOpts.replace('value="'+ac+'"', 'value="'+ac+'" selected') + '</select>';
+    html += '<select style="flex:1;" onchange="updateAdditionalCareList('+i+',this.value)"><option value="">-- Select --</option>';
+    // Build options with selection
+    Object.keys(REF_DATA.additional_instructions).forEach(a => {
+      html += '<option value="'+esc(a)+'" '+(ac === a ? 'selected' : '')+'>'+a+'</option>';
+    });
+    html += '</select>';
     html += '<button class="remove-btn" onclick="removeAdditionalCare('+i+')">x</button>';
     html += '</div>';
   });
@@ -1492,22 +1115,18 @@ function renderAdditionalCareInstructions() {
 }
 
 function updateAdditionalCareList(idx, val) {
-  let arr = orderData.additionalCare ? orderData.additionalCare.split('|').filter(v=>v) : [];
-  arr[idx] = val;
-  orderData.additionalCare = arr.filter(v=>v).join('|');
+  _additionalCareRows[idx] = val;
+  orderData.additionalCare = _additionalCareRows.filter(v => v).join('|');
 }
 
 function removeAdditionalCare(idx) {
-  let arr = orderData.additionalCare ? orderData.additionalCare.split('|').filter(v=>v) : [];
-  arr.splice(idx, 1);
-  orderData.additionalCare = arr.join('|');
+  _additionalCareRows.splice(idx, 1);
+  orderData.additionalCare = _additionalCareRows.filter(v => v).join('|');
   renderAdditionalCareInstructions();
 }
 
 function addAdditionalCare() {
-  let arr = orderData.additionalCare ? orderData.additionalCare.split('|').filter(v=>v) : [];
-  arr.push('');
-  orderData.additionalCare = arr.join('|');
+  _additionalCareRows.push('');
   renderAdditionalCareInstructions();
 }
 
@@ -1541,26 +1160,64 @@ function confirmComposition() {
 // GUIDED MODE: STEP 4 — SIZE RANGE
 // ============================================================
 function renderSizeRangeStep() {
-  const sel = document.getElementById('sizeRangeSelect');
-  sel.innerHTML = '<option value="">-- Select size range --</option>';
-  const section = orderData.section.toUpperCase();
-  let ranges;
-  if (section === 'KIDS') {
-    ranges = REF_DATA.size_ranges.K;
-    const gt = orderData.garmentType;
-    const uniqueNames = [...new Set(ranges.filter(r => !gt || r.G === gt).map(r => r.N))];
-    uniqueNames.forEach(n => { sel.innerHTML += '<option value="'+esc(n)+'">'+n+'</option>'; });
-  } else {
-    ranges = REF_DATA.size_ranges.MW;
-    const gt = orderData.garmentType;
-    const sec = section === 'MAN' ? 'MAN' : 'WOMAN';
-    const uniqueNames = [...new Set(ranges.filter(r => r.S === sec && (!gt || r.G === gt || r.G === 'ACCESSORIES')).map(r => r.N))];
-    uniqueNames.forEach(n => { sel.innerHTML += '<option value="'+esc(n)+'">'+n+'</option>'; });
+  // Pre-fill garment type filter from extracted data
+  const gtFilter = document.getElementById('garmentTypeFilter');
+  if (orderData.garmentType) {
+    gtFilter.value = orderData.garmentType;
   }
+
+  // Show/hide label generator message
+  const lgMsg = document.getElementById('lgAnalysisMsg');
+  if (lgFiles.length === 0) {
+    lgMsg.innerHTML = '<div class="info-banner">No label generator screenshots uploaded. Please select the size range manually.</div>';
+    document.getElementById('btnAnalyzeLG').style.display = 'none';
+  } else {
+    lgMsg.innerHTML = '<p class="subtitle">You uploaded ' + lgFiles.length + ' screenshot(s). Click below to auto-detect the size range.</p>';
+    document.getElementById('btnAnalyzeLG').style.display = '';
+  }
+
+  filterSizeRanges();
+
   if (orderData.sizes.length > 0) {
     document.getElementById('firstSize').value = orderData.sizes[0];
     document.getElementById('lastSize').value = orderData.sizes[orderData.sizes.length - 1];
   }
+}
+
+function filterSizeRanges() {
+  const sel = document.getElementById('sizeRangeSelect');
+  sel.innerHTML = '<option value="">-- Select size range --</option>';
+  const section = orderData.section.toUpperCase();
+  const gtFilter = document.getElementById('garmentTypeFilter').value;
+  const typeFilter = document.getElementById('sizeRangeTypeFilter').value;
+
+  let ranges;
+  if (section === 'KIDS') {
+    ranges = REF_DATA.size_ranges.K;
+  } else {
+    ranges = REF_DATA.size_ranges.MW;
+  }
+
+  let filtered = ranges;
+  // Filter by section (Man/Woman) for non-Kids
+  if (section !== 'KIDS') {
+    const sec = section === 'MAN' ? 'MAN' : 'WOMAN';
+    filtered = filtered.filter(r => r.S === sec);
+  }
+  // Filter by garment type
+  if (gtFilter) {
+    filtered = filtered.filter(r => r.G === gtFilter);
+  }
+  // Filter by size range type (T field: "BY LETTERS" or "BY NUMBERS")
+  if (typeFilter) {
+    filtered = filtered.filter(r => r.T === typeFilter);
+  }
+
+  const uniqueNames = [...new Set(filtered.map(r => r.N))];
+  uniqueNames.forEach(n => { sel.innerHTML += '<option value="'+esc(n)+'">'+n+'</option>'; });
+
+  // Clear preview when filters change
+  document.getElementById('sizeRangePreview').innerHTML = '';
 }
 
 function updateSizeRangePreview() {
@@ -1612,7 +1269,18 @@ async function analyzeLabelGenerator() {
 }
 
 function confirmSizeRange() {
-  orderData.sizeRange = document.getElementById('sizeRangeSelect').value || 'Manual';
+  const sizeRangeName = document.getElementById('sizeRangeSelect').value || 'Manual';
+  const gtVal = document.getElementById('garmentTypeFilter').value;
+  const typeVal = document.getElementById('sizeRangeTypeFilter').value;
+  // Build full size range name: e.g. "UPPER GARMENTS BY LETTERS"
+  let fullName = sizeRangeName;
+  if (gtVal && typeVal && sizeRangeName !== 'Manual') {
+    fullName = gtVal + ' GARMENTS ' + typeVal;
+    if (sizeRangeName && !sizeRangeName.toUpperCase().includes('GARMENT')) {
+      fullName = gtVal + ' ' + sizeRangeName + ' ' + typeVal;
+    }
+  }
+  orderData.sizeRange = fullName;
   orderData.firstSize = document.getElementById('firstSize').value || orderData.sizes[0] || '';
   orderData.lastSize = document.getElementById('lastSize').value || orderData.sizes[orderData.sizes.length - 1] || '';
   generateCSVPreview();
@@ -1771,18 +1439,14 @@ function showToast(msg, type) {
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
   setupFileHandlers();
-  // Sync API keys between modes
-  document.getElementById('qApiKey').addEventListener('input', function() {
-    document.getElementById('gApiKey').value = this.value;
-  });
-  document.getElementById('gApiKey').addEventListener('input', function() {
-    document.getElementById('qApiKey').value = this.value;
-  });
-  // Load API key from URL parameter ?key=...
+  // Load API key from URL parameter ?key=... (overrides config.js)
   const urlKey = new URLSearchParams(window.location.search).get('key');
   if (urlKey) {
-    document.getElementById('qApiKey').value = urlKey;
-    document.getElementById('gApiKey').value = urlKey;
+    window.CLAUDE_API_KEY = urlKey;
+  }
+  // Warn if no API key configured
+  if (!window.CLAUDE_API_KEY) {
+    console.warn('No CLAUDE_API_KEY configured. Add it to config.js or pass ?key= in URL.');
   }
 });
 </script>
