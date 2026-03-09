@@ -1303,7 +1303,15 @@ function updateSizeRangePreview() {
   orderData.sizeRange = name;
   if (!name) { document.getElementById('sizeRangePreview').innerHTML = ''; return; }
   const section = orderData.section.toUpperCase();
+  const gt = document.getElementById('garmentTypeFilter').value;
+  const typeFilter = document.getElementById('sizeRangeTypeFilter').value;
   let rows = section === 'KIDS' ? REF_DATA.size_ranges.K.filter(r => r.N === name) : REF_DATA.size_ranges.MW.filter(r => r.N === name);
+  if (section !== 'KIDS') {
+    const sec = section === 'MAN' ? 'MAN' : 'WOMAN';
+    rows = rows.filter(r => r.S === sec);
+  }
+  if (gt) rows = rows.filter(r => r.G === gt);
+  if (typeFilter) rows = rows.filter(r => r.T === typeFilter);
   if (rows.length === 0) return;
 
   // Filter to only show sizes from the order
@@ -1618,8 +1626,8 @@ function showStatusIcon(spanId, success) {
 // ============================================================
 // INIT
 // ============================================================
-const APP_VERSION = 'v2.2.0';
-const APP_BUILD = '2026-03-09 19:45';
+const APP_VERSION = 'v2.2.1';
+const APP_BUILD = '2026-03-09 20:00';
 document.addEventListener('DOMContentLoaded', () => {
   setupFileHandlers();
   document.getElementById('versionBar').textContent = APP_VERSION + ' \u00B7 ' + APP_BUILD;
