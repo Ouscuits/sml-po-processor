@@ -224,6 +224,11 @@ select { cursor: pointer; background: var(--surface); }
       </select>
     </div>
   </div>
+  <div class="card">
+    <h2>Order Archive</h2>
+    <p class="subtitle">Orders processed in this session, organized by brand and supplier.</p>
+    <div id="archiveContainer"><p class="subtitle">No orders processed yet.</p></div>
+  </div>
   <div class="btn-group">
     <button class="btn btn-primary" onclick="goToStep(1)">Continue</button>
   </div>
@@ -380,6 +385,7 @@ select { cursor: pointer; background: var(--surface); }
   <div class="btn-group">
     <button class="btn btn-secondary" onclick="goToStep(4)">Back</button>
     <button class="btn btn-success" onclick="downloadCSV()">Download CSV</button><span id="statusDownload"></span>
+    <button class="btn btn-primary" onclick="newOrder()" style="margin-left:auto;">New Order</button>
   </div>
 </div>
 
@@ -415,10 +421,128 @@ let orderData = {};
 function enterApp() {
   document.getElementById('smlHome').style.display = 'none';
   document.getElementById('appWrapper').classList.add('show');
+  renderArchive();
 }
 function goHome() {
   document.getElementById('appWrapper').classList.remove('show');
   document.getElementById('smlHome').style.display = '';
+}
+function newOrder() {
+  // Archive current order before resetting
+  archiveOrder();
+  // Reset all state
+  currentStep = 0;
+  poFile = null; poBase64 = null;
+  compoFile = null; compoBase64 = null;
+  lgFiles = [];
+  orderData = {};
+  window._csvRows = null;
+  window._csvHeaders = null;
+  // Reset UI
+  document.getElementById('poFileInfo').textContent = '';
+  document.getElementById('poFileInfo').style.display = 'none';
+  document.getElementById('poDropZone').classList.remove('has-file');
+  document.getElementById('compoFileInfo').textContent = '';
+  document.getElementById('compoFileInfo').style.display = 'none';
+  document.getElementById('compoDropZone').classList.remove('has-file');
+  document.getElementById('lgFilesInfo').innerHTML = '';
+  document.getElementById('btnExtract').disabled = true;
+  document.getElementById('csvPreview').innerHTML = '';
+  document.getElementById('csvRowCount').textContent = '';
+  document.querySelectorAll('.status-icon').forEach(el => el.remove());
+  document.querySelectorAll('[id^="status"]').forEach(el => el.innerHTML = '');
+  goToStep(0);
+  showToast('Ready for new order', 'success');
+}
+
+// ============================================================
+// ORDER ARCHIVE (IndexedDB)
+// ============================================================
+function openArchiveDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('POProcessorArchive', 1);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('orders')) {
+        db.createObjectStore('orders', { keyPath: 'id', autoIncrement: true });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function archiveOrder() {
+  if (!orderData.poNumber) return;
+  try {
+    const db = await openArchiveDB();
+    const tx = db.transaction('orders', 'readwrite');
+    tx.objectStore('orders').add({
+      poNumber: orderData.poNumber,
+      brand: document.getElementById('brandSelect')?.value || 'ZARA',
+      supplier: orderData.supplier || '',
+      article: orderData.article || '',
+      description: orderData.description || '',
+      season: orderData.season || '',
+      section: orderData.section || '',
+      hemisphere: orderData.hemisphere || '',
+      colors: (orderData.colors || []).length,
+      sizes: (orderData.sizes || []).join(', '),
+      csvRows: (window._csvRows || []).length,
+      date: new Date().toISOString()
+    });
+    db.close();
+  } catch (e) { console.error('Archive error:', e); }
+}
+
+async function getArchivedOrders() {
+  try {
+    const db = await openArchiveDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('orders', 'readonly');
+      const req = tx.objectStore('orders').getAll();
+      req.onsuccess = () => { db.close(); resolve(req.result); };
+      req.onerror = () => { db.close(); reject(req.error); };
+    });
+  } catch (e) { return []; }
+}
+
+async function renderArchive() {
+  const container = document.getElementById('archiveContainer');
+  if (!container) return;
+  const orders = await getArchivedOrders();
+  if (orders.length === 0) {
+    container.innerHTML = '<p class="subtitle">No orders processed yet.</p>';
+    return;
+  }
+  // Group by brand → supplier
+  const tree = {};
+  orders.forEach(o => {
+    const brand = o.brand || 'ZARA';
+    const supplier = o.supplier || 'Unknown';
+    if (!tree[brand]) tree[brand] = {};
+    if (!tree[brand][supplier]) tree[brand][supplier] = [];
+    tree[brand][supplier].push(o);
+  });
+
+  let html = '';
+  for (const [brand, suppliers] of Object.entries(tree)) {
+    html += '<div style="margin-bottom:12px;">';
+    html += '<div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:6px;">' + esc(brand) + '</div>';
+    for (const [supplier, ords] of Object.entries(suppliers)) {
+      html += '<div style="margin-left:16px;margin-bottom:8px;">';
+      html += '<div style="font-weight:600;font-size:13px;margin-bottom:4px;">' + esc(supplier) + '</div>';
+      html += '<div class="qty-table" style="margin:0;"><table class="data-table"><tr><th>PO</th><th>Article</th><th>Season</th><th>Sizes</th><th>Rows</th><th>Date</th></tr>';
+      ords.sort((a, b) => b.date.localeCompare(a.date));
+      ords.forEach(o => {
+        const d = o.date ? new Date(o.date).toLocaleDateString() : '';
+        html += '<tr><td><strong>' + esc(o.poNumber) + '</strong></td><td>' + esc(o.article) + '</td><td>' + esc(o.season) + '</td><td>' + esc(o.sizes) + '</td><td>' + (o.csvRows || 0) + '</td><td>' + d + '</td></tr>';
+      });
+      html += '</table></div></div>';
+    }
+    html += '</div>';
+  }
+  container.innerHTML = html;
 }
 
 // ============================================================
@@ -1626,8 +1750,8 @@ function showStatusIcon(spanId, success) {
 // ============================================================
 // INIT
 // ============================================================
-const APP_VERSION = 'v2.2.2';
-const APP_BUILD = '2026-03-09 20:10';
+const APP_VERSION = 'v2.3.0';
+const APP_BUILD = '2026-03-09 20:25';
 document.addEventListener('DOMContentLoaded', () => {
   setupFileHandlers();
   document.getElementById('versionBar').textContent = APP_VERSION + ' \u00B7 ' + APP_BUILD;
