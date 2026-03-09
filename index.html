@@ -201,6 +201,14 @@ select { cursor: pointer; }
 <!-- STEP 0: SETUP -->
 <div class="step-panel" id="panel-0">
   <div class="card">
+    <h2>API Configuration</h2>
+    <p class="subtitle">Enter your Claude API key to enable AI-powered extraction.</p>
+    <div class="form-group">
+      <label>Claude API Key</label>
+      <input type="password" id="gApiKey" style="font-family:'JetBrains Mono';letter-spacing:1px;" placeholder="sk-ant-api03-...">
+    </div>
+  </div>
+  <div class="card">
     <h2>Brand Selection</h2>
     <p class="subtitle">Select the brand for this PO.</p>
     <div class="form-group">
@@ -499,10 +507,10 @@ function setupFileHandlers() {
 // CLAUDE API
 // ============================================================
 async function callClaude(systemPrompt, userContent, retries = 1) {
-  const apiKey = window.CLAUDE_API_KEY || '';
+  const apiKey = (document.getElementById('gApiKey')?.value || '').trim() || window.CLAUDE_API_KEY || '';
   if (!apiKey) {
-    showToast('No API key configured. Please add your key to config.js', 'error');
-    throw new Error('No API key configured. Add CLAUDE_API_KEY to config.js');
+    showToast('Please enter your Claude API key in the Setup step', 'error');
+    throw new Error('No API key provided');
   }
 
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -1439,14 +1447,11 @@ function showToast(msg, type) {
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
   setupFileHandlers();
-  // Load API key from URL parameter ?key=... (overrides config.js)
+  // Pre-fill API key from URL parameter ?key=... or config.js
   const urlKey = new URLSearchParams(window.location.search).get('key');
-  if (urlKey) {
-    window.CLAUDE_API_KEY = urlKey;
-  }
-  // Warn if no API key configured
-  if (!window.CLAUDE_API_KEY) {
-    console.warn('No CLAUDE_API_KEY configured. Add it to config.js or pass ?key= in URL.');
+  const preKey = urlKey || window.CLAUDE_API_KEY || '';
+  if (preKey) {
+    document.getElementById('gApiKey').value = preKey;
   }
 });
 </script>
