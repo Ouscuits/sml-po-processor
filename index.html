@@ -149,6 +149,12 @@ select { cursor: pointer; background: var(--surface); }
 .toast-warning { background: var(--warning); color: #fff; }
 @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 
+/* Button status indicators */
+.btn-status { display: inline-flex; align-items: center; gap: 8px; }
+.status-icon { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; font-size: 14px; font-weight: 700; animation: fadeIn 0.3s; }
+.status-icon.success { background: var(--success); color: #fff; }
+.status-icon.error { background: var(--danger); color: #fff; }
+
 /* Progress bar */
 .progress-bar { width: 100%; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin: 16px 0; }
 .progress-fill { height: 100%; background: var(--primary); border-radius: 3px; transition: width 0.3s; width: 0%; }
@@ -251,7 +257,7 @@ select { cursor: pointer; background: var(--surface); }
   </div>
   <div class="btn-group">
     <button class="btn btn-secondary" onclick="goToStep(0)">Back</button>
-    <button class="btn btn-primary" id="btnExtract" disabled onclick="extractGeneralInfo()">Extract & Continue</button>
+    <button class="btn btn-primary" id="btnExtract" disabled onclick="extractGeneralInfo()">Extract & Continue</button><span id="statusExtract"></span>
   </div>
 </div>
 
@@ -353,7 +359,7 @@ select { cursor: pointer; background: var(--surface); }
   <div class="card">
     <h2>Label Generator Analysis</h2>
     <div id="lgAnalysisMsg"></div>
-    <button class="btn btn-secondary" id="btnAnalyzeLG" onclick="analyzeLabelGenerator()" style="display:none">Analyze Screenshots</button>
+    <button class="btn btn-secondary" id="btnAnalyzeLG" onclick="analyzeLabelGenerator()" style="display:none">Analyze Screenshots</button><span id="statusLG"></span>
   </div>
   <div class="btn-group">
     <button class="btn btn-secondary" onclick="goToStep(3)">Back</button>
@@ -370,7 +376,7 @@ select { cursor: pointer; background: var(--surface); }
   </div>
   <div class="btn-group">
     <button class="btn btn-secondary" onclick="goToStep(4)">Back</button>
-    <button class="btn btn-success" onclick="downloadCSV()">Download CSV</button>
+    <button class="btn btn-success" onclick="downloadCSV()">Download CSV</button><span id="statusDownload"></span>
   </div>
 </div>
 
@@ -795,10 +801,12 @@ async function extractGeneralInfo() {
 
     renderGeneralInfo();
     hideLoading();
+    showStatusIcon('statusExtract', true);
     goToStep(2);
     showToast('General information extracted successfully', 'success');
   } catch (e) {
     hideLoading();
+    showStatusIcon('statusExtract', false);
     showToast('Extraction failed: ' + e.message, 'error');
     console.error(e);
   }
@@ -1178,6 +1186,13 @@ function renderSizeRangeStep() {
     gtFilter.value = orderData.garmentType;
   }
 
+  // Auto-detect size range type from order sizes (letters vs numbers)
+  if (orderData.sizes.length > 0) {
+    const allNumeric = orderData.sizes.every(s => /^\d+$/.test(s));
+    const typeFilter = document.getElementById('sizeRangeTypeFilter');
+    typeFilter.value = allNumeric ? 'BY NUMBERS' : 'BY LETTERS';
+  }
+
   // Show/hide label generator message
   const lgMsg = document.getElementById('lgAnalysisMsg');
   if (lgFiles.length === 0) {
@@ -1190,9 +1205,57 @@ function renderSizeRangeStep() {
 
   filterSizeRanges();
 
+  // Auto-match size range from order sizes (without needing LG screenshots)
+  autoMatchSizeRange();
+
   if (orderData.sizes.length > 0) {
     document.getElementById('firstSize').value = orderData.sizes[0];
     document.getElementById('lastSize').value = orderData.sizes[orderData.sizes.length - 1];
+  }
+}
+
+function autoMatchSizeRange() {
+  if (orderData.sizes.length === 0) return;
+  const section = orderData.section.toUpperCase();
+  const gt = orderData.garmentType || '';
+  const ranges = section === 'KIDS' ? REF_DATA.size_ranges.K : REF_DATA.size_ranges.MW;
+
+  let candidates = ranges;
+  if (section !== 'KIDS') {
+    candidates = candidates.filter(r => r.S === (section === 'MAN' ? 'MAN' : 'WOMAN'));
+  }
+  if (gt) candidates = candidates.filter(r => r.G === gt);
+
+  // Group by range name
+  const rangeGroups = {};
+  candidates.forEach(r => {
+    if (!rangeGroups[r.N]) rangeGroups[r.N] = [];
+    rangeGroups[r.N].push(r);
+  });
+
+  // Score: count how many order sizes appear in each range's EU column
+  let bestName = '';
+  let bestScore = 0;
+  for (const [name, rows] of Object.entries(rangeGroups)) {
+    const euSizes = rows.map(r => r.EU.toUpperCase());
+    const score = orderData.sizes.filter(s => euSizes.includes(s.toUpperCase())).length;
+    // Prefer ranges where ALL order sizes match and range is not much bigger
+    if (score > bestScore || (score === bestScore && score === orderData.sizes.length && rows.length < (rangeGroups[bestName] || []).length)) {
+      bestScore = score;
+      bestName = name;
+    }
+  }
+
+  if (bestName && bestScore === orderData.sizes.length) {
+    const sel = document.getElementById('sizeRangeSelect');
+    for (const opt of sel.options) {
+      if (opt.value === bestName) {
+        opt.selected = true;
+        orderData.sizeRange = bestName;
+        updateSizeRangePreview();
+        break;
+      }
+    }
   }
 }
 
@@ -1239,6 +1302,14 @@ function updateSizeRangePreview() {
   const section = orderData.section.toUpperCase();
   let rows = section === 'KIDS' ? REF_DATA.size_ranges.K.filter(r => r.N === name) : REF_DATA.size_ranges.MW.filter(r => r.N === name);
   if (rows.length === 0) return;
+
+  // Filter to only show sizes from the order
+  if (orderData.sizes.length > 0) {
+    const orderSizesUpper = orderData.sizes.map(s => s.toUpperCase());
+    const filteredRows = rows.filter(r => orderSizesUpper.includes(r.EU.toUpperCase()));
+    if (filteredRows.length > 0) rows = filteredRows;
+  }
+
   let html = '<div class="qty-table"><table><tr><th>S.Code</th><th>EU</th><th>US</th><th>UK</th><th>MX</th><th>BR</th><th>CN</th></tr>';
   rows.forEach(r => {
     html += '<tr><td>'+orDash(r.SC)+'</td><td>'+orDash(r.EU)+'</td><td>'+orDash(r.US)+'</td><td>'+orDash(r.UK)+'</td><td>'+orDash(r.MX)+'</td><td>'+orDash(r.BR)+'</td><td>'+orDash(r.CN)+'</td></tr>';
@@ -1319,16 +1390,20 @@ async function analyzeLabelGenerator() {
             break;
           }
         }
+        showStatusIcon('statusLG', true);
         showToast('Matched size range: ' + bestName + ' (' + bestScore + '/' + extractedSCodes.length + ' sizes matched)', 'success');
       } else {
+        showStatusIcon('statusLG', false);
         showToast('Could not auto-match size range. Please select manually.', 'warning');
       }
     } else {
+      showStatusIcon('statusLG', false);
       showToast('No size data extracted from screenshots.', 'warning');
     }
     hideLoading();
   } catch (e) {
     hideLoading();
+    showStatusIcon('statusLG', false);
     showToast('Analysis failed: ' + e.message, 'error');
   }
 }
@@ -1463,6 +1538,7 @@ function downloadCSV() {
     csv += headers.map(h => '"' + String(r[h] ?? '').replace(/"/g, '""') + '"').join(',') + '\n';
   });
   downloadBlob(csv, 'text/csv', 'PO_' + (orderData.poNumber || 'export') + '_' + new Date().toISOString().slice(0,10) + '.csv');
+  showStatusIcon('statusDownload', true);
 }
 
 // ============================================================
@@ -1497,6 +1573,11 @@ function showToast(msg, type) {
   t.textContent = msg;
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 4000);
+}
+function showStatusIcon(spanId, success) {
+  const span = document.getElementById(spanId);
+  if (!span) return;
+  span.innerHTML = '<span class="status-icon ' + (success ? 'success' : 'error') + '">' + (success ? '\u2713' : '\u2717') + '</span>';
 }
 
 // ============================================================
