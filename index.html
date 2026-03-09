@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" translate="no">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="google" content="notranslate">
 <title>SML PO Processor — Zara Label Orders</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js"></script>
@@ -641,7 +642,7 @@ CRITICAL RULES:
     Under "CARE INSTRUCTIONS" / "INSTRUCCIONES DE CONSERVACION", extract care instructions.
     Set hasComposition=true if found, false if not.
 
-13. All output text must be in ENGLISH. Translate Spanish terms.
+13. LANGUAGE: ALL output text MUST be in ENGLISH. Translate ALL Spanish/Portuguese terms to English. Never output Spanish words. The input documents may be in Spanish but your JSON output must always be fully in English.
 14. Use DOT notation for all decimal numbers except CLP (no decimals).`;
 
 const SYSTEM_PROMPT_ANNEX = `You extract composition and care data from Zara technical annex / care label layout PDFs.
@@ -662,7 +663,7 @@ RULES:
 - For care symbols: translate visual pictograms to text instructions (washing, bleaching, drying, ironing, dry cleaning)
 - Look for 3 rows of care symbols: GINETEX/ISO, Korean (KS K 0021), ASTM (US)
 - Use only the GINETEX/ISO row (first row) for the main care instructions
-- All output in English`;
+- IMPORTANT: ALL output text MUST be in ENGLISH. Never output Spanish or Portuguese words. Translate everything to English.`;
 
 const SYSTEM_PROMPT_LG = `You extract size range data from Zara label generator screenshots.
 
