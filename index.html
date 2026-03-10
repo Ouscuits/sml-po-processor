@@ -172,11 +172,12 @@ select { cursor: pointer; background: var(--surface); }
 .login-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; background: var(--bg); }
 .login-screen video { width: 300px; border-radius: 10px; margin-bottom: 24px; }
 .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; width: 100%; max-width: 360px; box-shadow: var(--shadow-md); }
-.login-card h2 { font-size: 18px; font-weight: 600; margin-bottom: 4px; text-align: center; }
-.login-card .subtitle { text-align: center; margin-bottom: 20px; }
+.login-card h2 { font-size: 20px; font-weight: 700; margin-bottom: 4px; text-align: center; }
+.login-card .subtitle { text-align: center; margin-bottom: 20px; color: var(--text-muted); font-size: 13px; }
 .login-card .form-group { margin-bottom: 14px; }
 .login-card .btn-primary { width: 100%; }
-.login-error { color: var(--danger); font-size: 12px; text-align: center; margin-top: 8px; display: none; }
+.login-error { color: var(--danger); font-size: 12px; text-align: center; margin-top: 10px; display: none; }
+.login-domain { font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 12px; }
 .user-badge { font-size: 11px; color: var(--text-muted); margin-left: auto; margin-right: 8px; }
 .logout-btn { font-size: 11px; color: var(--text-muted); cursor: pointer; text-decoration: underline; background: none; border: none; font-family: 'DM Sans'; }
 .logout-btn:hover { color: var(--primary); }
@@ -198,29 +199,28 @@ select { cursor: pointer; background: var(--surface); }
 </head>
 <body>
 
-<!-- LOGIN MODAL (shown on demand) -->
-<div class="login-screen" id="loginScreen" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:rgba(0,0,0,0.5);">
+<!-- LOGIN SCREEN (mandatory) -->
+<div class="login-screen" id="loginScreen">
+  <video src="sml-animation.mp4" autoplay muted loop playsinline></video>
   <div class="login-card">
-    <h2>Sign In</h2>
-    <p class="subtitle">Sign in to access label references from inventory</p>
+    <h2>PO Processor</h2>
+    <p class="subtitle">Sign in with your SML account</p>
     <div class="form-group">
       <label>Email</label>
-      <input type="email" id="loginEmail" placeholder="email@smlgroup.com" onkeydown="if(event.key==='Enter')doLogin()">
+      <input type="email" id="loginEmail" placeholder="name@smlgroup.com" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
     <div class="form-group">
       <label>Password</label>
       <input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
-    <div style="display:flex;gap:8px;">
-      <button class="btn btn-primary" style="flex:1;" onclick="doLogin()">Sign In</button>
-      <button class="btn btn-secondary" onclick="hideLoginModal()">Cancel</button>
-    </div>
+    <button class="btn btn-primary" onclick="doLogin()">Sign In</button>
     <div class="login-error" id="loginError"></div>
+    <div class="login-domain">Only @smlgroup.com accounts</div>
   </div>
 </div>
 
 <!-- SML HOME -->
-<div class="sml-home" id="smlHome">
+<div class="sml-home" id="smlHome" style="display:none;">
   <video src="sml-animation.mp4" autoplay muted loop playsinline></video>
   <button class="start-btn" onclick="enterApp()">PO Processor</button>
 </div>
@@ -230,8 +230,7 @@ select { cursor: pointer; background: var(--surface); }
   <h1>PO Processor</h1>
   <span class="badge">Zara</span>
   <span class="user-badge" id="userBadge"></span>
-  <button class="logout-btn" id="loginBtn" onclick="showLoginModal()" style="display:none">Sign In</button>
-  <button class="logout-btn" id="logoutBtn" onclick="doLogout()" style="display:none">Logout</button>
+  <button class="logout-btn" id="logoutBtn" onclick="doLogout()">Logout</button>
   <div class="header-logo" id="logoTop" onclick="goHome()">
     <img src="sml-primary.svg" alt="SML">
   </div>
@@ -500,18 +499,14 @@ async function loadInventoryRefs() {
   }
 }
 
-function showLoginModal() { document.getElementById('loginScreen').style.display = ''; }
-function hideLoginModal() { document.getElementById('loginScreen').style.display = 'none'; }
-
 function doLogin() {
   const email = document.getElementById('loginEmail').value.trim();
   const pw = document.getElementById('loginPassword').value;
   const errEl = document.getElementById('loginError');
   errEl.style.display = 'none';
   if (!email || !pw) { errEl.textContent = 'Please enter email and password'; errEl.style.display = 'block'; return; }
-  auth.signInWithEmailAndPassword(email, pw).then(() => {
-    hideLoginModal();
-  }).catch(err => {
+  if (!email.endsWith('@smlgroup.com')) { errEl.textContent = 'Only @smlgroup.com emails are allowed'; errEl.style.display = 'block'; return; }
+  auth.signInWithEmailAndPassword(email, pw).catch(err => {
     errEl.textContent = err.code === 'auth/invalid-credential' ? 'Invalid email or password' : err.message;
     errEl.style.display = 'block';
   });
@@ -521,18 +516,18 @@ function doLogout() {
   auth.signOut();
 }
 
-// Auth state listener
+// Auth state listener — login is mandatory
 auth.onAuthStateChanged(async (user) => {
-  hideLoginModal();
   if (user) {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('smlHome').style.display = '';
     document.getElementById('userBadge').textContent = user.email;
-    document.getElementById('logoutBtn').style.display = '';
-    document.getElementById('loginBtn').style.display = 'none';
     await loadInventoryRefs();
   } else {
+    document.getElementById('loginScreen').style.display = '';
+    document.getElementById('smlHome').style.display = 'none';
+    document.getElementById('appWrapper').classList.remove('show');
     document.getElementById('userBadge').textContent = '';
-    document.getElementById('logoutBtn').style.display = 'none';
-    document.getElementById('loginBtn').style.display = '';
   }
 });
 
