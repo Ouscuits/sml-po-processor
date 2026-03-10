@@ -522,6 +522,8 @@ auth.onAuthStateChanged(async (user) => {
   if (user) {
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('smlHome').style.display = '';
+    const v = document.querySelector('#smlHome video');
+    if (v) { v.currentTime = 0; v.play().catch(() => {}); }
     document.getElementById('userBadge').textContent = user.email;
     await loadInventoryRefs();
   } else {
@@ -552,6 +554,8 @@ function enterApp() {
 function goHome() {
   document.getElementById('appWrapper').classList.remove('show');
   document.getElementById('smlHome').style.display = '';
+  const v = document.querySelector('#smlHome video');
+  if (v) { v.currentTime = 0; v.play().catch(() => {}); }
 }
 function newOrder() {
   // Archive current order before resetting
