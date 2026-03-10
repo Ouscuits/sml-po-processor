@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="google" content="notranslate">
-<title>SML PO Processor — Zara Label Orders</title>
+<title>SML DataLift — Label Order Processing</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -203,8 +203,8 @@ select { cursor: pointer; background: var(--surface); }
 <div class="login-screen" id="loginScreen">
   <video src="sml-animation.mp4" autoplay muted loop playsinline></video>
   <div class="login-card">
-    <h2>PO Processor</h2>
-    <p class="subtitle">Sign in with your SML account</p>
+    <h2>DataLift</h2>
+    <p class="subtitle">Sign in with your account</p>
     <div class="form-group">
       <label>Email</label>
       <input type="email" id="loginEmail" placeholder="email@example.com" onkeydown="if(event.key==='Enter')doLogin()">
@@ -221,12 +221,12 @@ select { cursor: pointer; background: var(--surface); }
 <!-- SML HOME -->
 <div class="sml-home" id="smlHome" style="display:none;">
   <video src="sml-animation.mp4" autoplay muted loop playsinline></video>
-  <button class="start-btn" onclick="enterApp()">PO Processor</button>
+  <button class="start-btn" onclick="enterApp()">DataLift</button>
 </div>
 
 <div class="app-wrapper" id="appWrapper">
 <div class="app-header">
-  <h1>PO Processor</h1>
+  <h1>DataLift</h1>
   <span class="badge">Zara</span>
   <span class="user-badge" id="userBadge"></span>
   <button class="logout-btn" id="logoutBtn" onclick="doLogout()">Logout</button>
@@ -275,7 +275,7 @@ select { cursor: pointer; background: var(--surface); }
     <div id="archiveContainer"><p class="subtitle">No orders processed yet.</p></div>
   </div>
   <div class="btn-group">
-    <button class="btn btn-primary" onclick="goToStep(1)">Continue</button>
+    <button class="btn btn-primary" onclick="selectedBrand = document.getElementById('brandSelect').value; goToStep(1);">Continue</button>
   </div>
 </div>
 
@@ -331,7 +331,7 @@ select { cursor: pointer; background: var(--surface); }
   </div>
   <div class="card">
     <h2>Label References</h2>
-    <p class="subtitle">Only SP, HP, CL, ST, WT references with 3rd char Z are included.</p>
+    <p class="subtitle">Filtered by brand nomenclature rules.</p>
     <div id="labelRefsContainer"></div>
   </div>
   <div class="btn-group">
@@ -538,6 +538,7 @@ auth.onAuthStateChanged(async (user) => {
 // STATE
 // ============================================================
 let currentStep = 0;
+let selectedBrand = 'ZARA';
 let poFile = null, poBase64 = null;
 let compoFile = null, compoBase64 = null;
 let lgFiles = [];
@@ -946,6 +947,113 @@ RULES:
   DRY CLEAN: DRY CLEAN TETRACHLORETHYLENE | DRY CLEAN ONLY MINERAL ESSENCES | DO NOT DRY CLEAN
 - IMPORTANT: ALL output text MUST be in ENGLISH. Never output Spanish or Portuguese words. Translate everything to English.`;
 
+const SYSTEM_PROMPT_GENERAL_BERSHKA = `You are an expert at extracting structured data from Bershka purchase order PDFs for a label manufacturing company (SML Group).
+
+CONTEXT: You process purchase orders for textile labels (hang tag prices, care labels). The PO may be in Spanish or English. You must translate all output to English.
+
+Extract ALL the following information and return ONLY a valid JSON object (no markdown, no backticks):
+
+{
+  "poNumber": "PO number (format #####-01 or #####-suffix)",
+  "supplier": "supplier name (text BEFORE the hyphen in Supplier field)",
+  "supplierId": "5-digit code AFTER the hyphen in Supplier field",
+  "season": "season in English (translate if Spanish: V/Verano=S/Summer, I/Invierno=W/Winter). Format: S 2026 or W 2026",
+  "article": "article code format ####/###",
+  "description": "garment description in English",
+  "madeIn": "country from MARKET OF ORIGIN, in English",
+  "rfidAlarm": true if "THIS GARMENT HAS A RFID LABEL" text or RFID badge appears, false otherwise,
+  "priceSystem": "blue_red or black",
+  "prices": {
+    "blue": {"value": "number or empty", "currency": "EUR"},
+    "red": {"value": "number or empty", "currency": "EUR"},
+    "black": {"value": "number or empty", "currency": "EUR"}
+  },
+  "colors": [{"code": "3-digit color code only", "description": "color name"}],
+  "sizes": ["size1", "size2", ...],
+  "quantities": {"colorCode": {"size": qty, ...}, ...},
+  "labelRefs": [{"ref": "reference code", "description": "label description", "isRFID": true/false}],
+  "hasComposition": true/false,
+  "composition": {
+    "parts": [{"part": "OUTER SHELL/LINING/FILLING", "fibers": [{"fiber": "fiber name in English", "percentage": number}]}],
+    "exceptions": ["exception text in English"],
+    "careInstructions": ["WASH instruction", "BLEACH instruction", "TUMBLE DRY instruction", "IRON instruction", "DRY CLEAN instruction"],
+    "additionalCare": ["additional instruction 1", ...]
+  }
+}
+
+CRITICAL RULES:
+1. PO NUMBER: Located under "Order Nr" / "N PED." / "Pedido Nr". Format #####-## (e.g., 12345-01). Extract exactly as shown.
+
+2. SUPPLIER: Under "Supplier" / "Proveedor". Name is everything BEFORE the last hyphen followed by the 5-digit code. Example: "TEXTILES CAMONES S.A. BIC - 01716" → name="TEXTILES CAMONES S.A. BIC", id="01716".
+
+3. SEASON: Under "Season" / "Temporada". Translate Spanish: V/Verano = S (Summer), I/Invierno = W (Winter). Format: "S 2026".
+
+4. ARTICLE: Under "ARTICLE" / "ARTICULO" in grey box. Format ####/###.
+
+5. DESCRIPTION: Under "DESCRIPTION" / "DESCRIPCION" in grey box next to ARTICLE. Translate to English if in Spanish.
+
+6. MADE IN: Under "MARKET OF ORIGIN" / "MERCADO DE ORIGEN". Country name in English.
+
+7. RFID: Look for "THIS GARMENT HAS A RFID LABEL" or "ESTA PRENDA TIENE ETIQUETA RFID" text, and "RFID ALARM & INVENTORY" / "RFID ALARMA & INVENTARIO" badges.
+
+8. PRICES — Read ALL prices from the PVP section. All prices are in EUR.
+   - The two pricing options are MUTUALLY EXCLUSIVE:
+     OPTION A (Blue+Red): TWO different EUR prices shown with blue and red colored bands. The HIGHER EUR = BluePrice, the LOWER EUR = RedPrice. Set priceSystem = "blue_red".
+     OPTION B (Black): Only ONE EUR price shown with a black colored band = BlackPrice. Set priceSystem = "black".
+   - If the colored bands (blue/red/black) are not clearly identifiable, set the price value to "MANUAL_REVIEW".
+   - Always use DOT notation for decimals (e.g., 22.95 not 22,95).
+
+9. TOTAL ORDER TABLE: Under "TOTAL ORDER" / "TOTAL PEDIDO". Colors as rows (extract 3-digit code only), sizes as columns. Sizes can be letters (S,M,L,XL), numbers (34,36,38), or other formats. Extract every quantity per color+size cell.
+
+10. LABEL REFERENCES: Below the order table, or in an attached labels document. Look for bold reference codes with descriptions. Only include codes where:
+    - First 2 chars are HP or CL
+    - 3rd character is B (for Bershka)
+    - IGNORE references starting with CLBCRFI
+    - IGNORE any prefix not in [HP, CL]
+    For each ref, check if "RFID" badge appears near it → isRFID=true.
+
+11. COMPOSITION: If found, extract:
+    - Parts (OUTER SHELL/EXTERIOR, LINING/FORRO, FILLING/RELLENO)
+    - Fibers with percentages (translate to English: ALGODON=COTTON, POLIESTER=POLYESTER, etc.)
+    - Extract only the MAIN/AGGREGATED composition. IGNORE recycled breakdowns.
+    - Exceptions: Parse "Incluye microcontenido..." → "INCLUDING MICROCONTENT IN [PART]: [FIBER]"
+
+12. CARE INSTRUCTIONS: If found, extract from GINETEX/ISO row. Must be ALL UPPERCASE and match exact values:
+    WASH: HAND WASH UP TO 30°C/86°F | MACHINE WASH UP TO 95°C/203°F | MACHINE WASH UP TO 60°C/140°F GENTLE CYCLE | MACHINE WASH UP TO 40°C/104°F GENTLE CYCLE | MACHINE WASH UP TO 30°C/86°F GENTLE CYCLE | MACHINE WASH UP TO 30°C/86°F VERY GENTLE CYCLE | DO NOT WASH
+    BLEACH: BLEACH WHEN NEEDED | DO NOT BLEACH
+    TUMBLE DRY: TUMBLE DRY LOW | DO NOT TUMBLE DRY
+    IRON: IRON UP TO 200°C/392°F | IRON UP TO 150°C/302°F | IRON UP TO 110°C/230°F | DO NOT IRON
+    DRY CLEAN: DRY CLEAN TETRACHLORETHYLENE | DRY CLEAN ONLY MINERAL ESSENCES | DO NOT DRY CLEAN
+
+13. LANGUAGE: ALL output text MUST be in ENGLISH. Translate ALL Spanish/Portuguese terms.
+14. Use DOT notation for all decimal numbers.`;
+
+const SYSTEM_PROMPT_ANNEX_BERSHKA = `You extract composition and care data from Bershka technical annex / care label layout PDFs. The document may be in Spanish or English.
+
+Return ONLY a valid JSON object (no markdown):
+{
+  "article": "####/### article code",
+  "season": "season if visible",
+  "parts": [{"part": "OUTER SHELL/LINING/FILLING", "fibers": [{"fiber": "fiber name English", "percentage": number}]}],
+  "exceptions": ["exception text English"],
+  "careInstructions": ["WASH instruction", "BLEACH instruction", "TUMBLE DRY instruction", "IRON instruction", "DRY CLEAN instruction"],
+  "additionalCare": ["additional instruction 1", ...]
+}
+
+RULES:
+- Extract only the MAIN/AGGREGATED composition — ignore recycled breakdowns.
+- Categorize parts: if no separate parts mentioned, use OUTER SHELL.
+- Exceptions: "Incluye microcontenido..." → "INCLUDING MICROCONTENT IN [PART]: [FIBER]" in English.
+- For care symbols: visually identify pictograms (tub=wash, triangle=bleach, square=tumble dry, iron=iron, circle=dry clean). Use GINETEX/ISO row (Row 1).
+- Korean row (Row 2) has Iron and Tumble Dry swapped vs GINETEX — do not confuse.
+- Care instructions MUST be ALL UPPERCASE English matching exact values:
+  WASH: HAND WASH UP TO 30°C/86°F | MACHINE WASH UP TO 95°C/203°F | MACHINE WASH UP TO 60°C/140°F GENTLE CYCLE | MACHINE WASH UP TO 40°C/104°F GENTLE CYCLE | MACHINE WASH UP TO 30°C/86°F GENTLE CYCLE | MACHINE WASH UP TO 30°C/86°F VERY GENTLE CYCLE | DO NOT WASH
+  BLEACH: BLEACH WHEN NEEDED | DO NOT BLEACH
+  TUMBLE DRY: TUMBLE DRY LOW | DO NOT TUMBLE DRY
+  IRON: IRON UP TO 200°C/392°F | IRON UP TO 150°C/302°F | IRON UP TO 110°C/230°F | DO NOT IRON
+  DRY CLEAN: DRY CLEAN TETRACHLORETHYLENE | DRY CLEAN ONLY MINERAL ESSENCES | DO NOT DRY CLEAN
+- ALL output text MUST be in ENGLISH. Translate all Spanish/Portuguese.`;
+
 const SYSTEM_PROMPT_LG = `You extract size range data from Zara label generator screenshots.
 
 Return ONLY a valid JSON object:
@@ -974,20 +1082,45 @@ RULES:
 // ============================================================
 // STEP 2 — EXTRACT GENERAL INFO
 // ============================================================
+function filterLabelRefs(refs) {
+  const brand = selectedBrand;
+  return (refs || []).filter(r => {
+    const ref = r.ref || '';
+    if (ref.length < 3) return false;
+    if (brand === 'BERSHKA') {
+      if (ref[2] !== 'B') return false;
+      const prefix = ref.substring(0, 2);
+      if (!['HP','CL'].includes(prefix)) return false;
+      if (ref.startsWith('CLBCRFI')) return false;
+      return true;
+    }
+    // ZARA
+    if (ref[2] !== 'Z') return false;
+    const prefix = ref.substring(0, 2);
+    if (!['SP','HP','CL','ST','WT'].includes(prefix)) return false;
+    if (prefix === 'CL' && /^CLZCALL01[0-9]$/.test(ref)) return false;
+    return true;
+  });
+}
+
 async function extractGeneralInfo() {
   showLoading('Extracting general information from PO...');
   try {
+    const isBershka = selectedBrand === 'BERSHKA';
+    const sysPrompt = isBershka ? SYSTEM_PROMPT_GENERAL_BERSHKA : SYSTEM_PROMPT_GENERAL;
+    const brandLabel = isBershka ? 'Bershka' : 'Zara';
     const userContent = [
       { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: poBase64 } },
-      { type: 'text', text: 'Extract all general information from this Zara PO. Return ONLY the JSON object, no markdown formatting.' }
+      { type: 'text', text: 'Extract all general information from this ' + brandLabel + ' PO. Return ONLY the JSON object, no markdown formatting.' }
     ];
 
-    const response = await callClaude(SYSTEM_PROMPT_GENERAL, userContent);
+    const response = await callClaude(sysPrompt, userContent);
     const data = extractJSON(response);
 
     // Populate orderData
+    orderData.brand = selectedBrand;
     orderData.poNumber = data.poNumber || '';
-    orderData.hemisphere = data.hemisphere || '';
+    orderData.hemisphere = isBershka ? 'South' : (data.hemisphere || '');
     orderData.supplier = data.supplier || '';
     orderData.supplierId = data.supplierId || '';
     orderData.season = data.season || '';
@@ -1001,27 +1134,28 @@ async function extractGeneralInfo() {
     orderData.colors = data.colors || [];
     orderData.sizes = data.sizes || [];
     orderData.quantities = data.quantities || {};
-    orderData.labelRefs = (data.labelRefs || []).filter(r => {
-      const ref = r.ref || '';
-      if (ref.length < 3 || ref[2] !== 'Z') return false;
-      const prefix = ref.substring(0, 2);
-      if (!['SP','HP','CL','ST','WT'].includes(prefix)) return false;
-      if (prefix === 'CL' && /^CLZCALL01[0-9]$/.test(ref)) return false;
-      return true;
-    });
+    orderData.labelRefs = filterLabelRefs(data.labelRefs);
 
     // Prices
     if (data.prices) {
-      orderData.printedPrice1 = data.prices.printed1?.value || '';
-      orderData.printedPrice1Currency = data.prices.printed1?.currency || '';
-      orderData.printedPrice2 = data.prices.printed2?.value || '';
-      orderData.printedPrice2Currency = data.prices.printed2?.currency || '';
+      if (isBershka) {
+        // Bershka: EUR only, no printed prices
+        orderData.printedPrice1 = '';
+        orderData.printedPrice1Currency = '';
+        orderData.printedPrice2 = '';
+        orderData.printedPrice2Currency = '';
+      } else {
+        orderData.printedPrice1 = data.prices.printed1?.value || '';
+        orderData.printedPrice1Currency = data.prices.printed1?.currency || '';
+        orderData.printedPrice2 = data.prices.printed2?.value || '';
+        orderData.printedPrice2Currency = data.prices.printed2?.currency || '';
+      }
       orderData.bluePrice = data.prices.blue?.value || '';
-      orderData.bluePriceCurrency = data.prices.blue?.currency || '';
+      orderData.bluePriceCurrency = data.prices.blue?.currency || 'EUR';
       orderData.redPrice = data.prices.red?.value || '';
-      orderData.redPriceCurrency = data.prices.red?.currency || '';
+      orderData.redPriceCurrency = data.prices.red?.currency || 'EUR';
       orderData.blackPrice = data.prices.black?.value || '';
-      orderData.blackPriceCurrency = data.prices.black?.currency || '';
+      orderData.blackPriceCurrency = data.prices.black?.currency || 'EUR';
     }
 
     // Determine section
@@ -1043,7 +1177,8 @@ async function extractGeneralInfo() {
     if (!orderData._hasComposition && compoBase64) {
       showLoading('Extracting composition from supplementary file...');
       try {
-        const compoResp = await callClaude(SYSTEM_PROMPT_ANNEX, [
+        const annexPrompt = isBershka ? SYSTEM_PROMPT_ANNEX_BERSHKA : SYSTEM_PROMPT_ANNEX;
+        const compoResp = await callClaude(annexPrompt, [
           { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: compoBase64 } },
           { type: 'text', text: 'Extract composition and care data from this care label layout file.' }
         ]);
@@ -1072,22 +1207,49 @@ async function extractGeneralInfo() {
 }
 
 function determineSectionFromRefs() {
+  const charToSection = { 'M': 'MAN', 'W': 'WOMAN', 'K': 'KIDS' };
+  const isBershka = selectedBrand === 'BERSHKA';
+
+  if (isBershka) {
+    // Bershka: 4th char C=Common, K=Kids, M=Man, W=Woman
+    // Priority: HP refs first, then all refs
+    // Common (C) is ignored; contradictions → empty (manual)
+    const priceRefs = orderData.labelRefs.filter(r => r.ref.startsWith('HP'));
+    const sections = new Set();
+    for (const pr of priceRefs) {
+      if (pr.ref.length >= 4) {
+        const s = pr.ref[3].toUpperCase();
+        if (charToSection[s]) sections.add(charToSection[s]);
+      }
+    }
+    if (sections.size === 1) { orderData.section = [...sections][0]; return; }
+    if (sections.size > 1) { orderData.section = ''; return; } // contradictions
+
+    // Fallback: check all refs (CL etc.)
+    for (const lr of orderData.labelRefs) {
+      if (lr.ref.length >= 4) {
+        const s = lr.ref[3].toUpperCase();
+        if (charToSection[s]) sections.add(charToSection[s]);
+      }
+    }
+    if (sections.size === 1) { orderData.section = [...sections][0]; return; }
+    // All Common or contradictions → manual
+    orderData.section = '';
+    return;
+  }
+
+  // ZARA logic
   const priceRefs = orderData.labelRefs.filter(r => r.ref.startsWith('SP') || r.ref.startsWith('HP'));
   for (const pr of priceRefs) {
     if (pr.ref.length >= 4) {
       const s = pr.ref[3].toUpperCase();
-      if (s === 'M') { orderData.section = 'MAN'; return; }
-      if (s === 'W') { orderData.section = 'WOMAN'; return; }
-      if (s === 'K') { orderData.section = 'KIDS'; return; }
+      if (charToSection[s]) { orderData.section = charToSection[s]; return; }
     }
   }
-  // Fallback: check all refs
   for (const lr of orderData.labelRefs) {
     if (lr.ref.length >= 4) {
       const s = lr.ref[3].toUpperCase();
-      if (s === 'M') { orderData.section = 'MAN'; return; }
-      if (s === 'W') { orderData.section = 'WOMAN'; return; }
-      if (s === 'K') { orderData.section = 'KIDS'; return; }
+      if (charToSection[s]) { orderData.section = charToSection[s]; return; }
     }
   }
   orderData.section = '';
@@ -1107,36 +1269,44 @@ function classifyGarment(desc) {
 // ============================================================
 function renderGeneralInfo() {
   const d = orderData;
+  const isBershka = selectedBrand === 'BERSHKA';
   const seasonOpts = Object.keys(REF_DATA.seasons).filter(k => k === REF_DATA.seasons[k]).map(s => '<option value="'+s+'" '+(s===d.season?'selected':'')+'>'+s+'</option>').join('');
   const sectionOpts = ['MAN','WOMAN','KIDS'].map(s => '<option value="'+s+'" '+(s===d.section?'selected':'')+'>'+s+'</option>').join('');
   const collOpts = d.section ? (REF_DATA.sections_collections[d.section.toUpperCase()] || []).map(c => '<option value="'+c+'">'+c+'</option>').join('') : '';
   const madeInOpts = REF_DATA.made_in_countries.map(c => '<option value="'+c+'" '+(c.toUpperCase()===d.madeIn.toUpperCase()?'selected':'')+'>'+c+'</option>').join('');
   const gtOpts = ['UPPER','LOWER','ACCESSORIES'].map(g => '<option value="'+g+'" '+(g===d.garmentType?'selected':'')+'>'+g+'</option>').join('');
 
-  document.getElementById('generalInfoFields').innerHTML = `
-    <div class="grid-2">
-      <div class="field-row"><span class="field-label">PO Number</span><div class="field-value"><input type="text" id="f_poNumber" value="${d.poNumber}" onchange="orderData.poNumber=this.value"></div></div>
-      <div class="field-row"><span class="field-label">Hemisphere</span><div class="field-value"><select id="f_hemisphere" onchange="orderData.hemisphere=this.value"><option value="North" ${d.hemisphere==='North'?'selected':''}>North</option><option value="South" ${d.hemisphere==='South'?'selected':''}>South</option></select></div></div>
-    </div>
-    <div class="grid-2">
-      <div class="field-row"><span class="field-label">Supplier</span><div class="field-value"><input type="text" id="f_supplier" value="${d.supplier}" onchange="orderData.supplier=this.value"></div></div>
-      <div class="field-row"><span class="field-label">Supplier ID</span><div class="field-value"><input type="text" id="f_supplierId" value="${d.supplierId}" onchange="orderData.supplierId=this.value"></div></div>
-    </div>
-    <div class="grid-3">
-      <div class="field-row"><span class="field-label">Season</span><div class="field-value"><select id="f_season" onchange="orderData.season=this.value">${seasonOpts}</select></div></div>
-      <div class="field-row"><span class="field-label">Section</span><div class="field-value"><select id="f_section" onchange="orderData.section=this.value; updateCollectionOptions();">${sectionOpts}</select></div></div>
-      <div class="field-row"><span class="field-label">Collection</span><div class="field-value"><select id="f_collection" onchange="orderData.collection=this.value">${collOpts}</select></div></div>
-    </div>
-    <div class="grid-2">
-      <div class="field-row"><span class="field-label">Article (Model/Quality)</span><div class="field-value"><input type="text" id="f_article" value="${d.article}" onchange="orderData.article=this.value; orderData.modelId=this.value.split('/')[0]; orderData.qualityId=this.value.split('/')[1];"></div></div>
-      <div class="field-row"><span class="field-label">Made In</span><div class="field-value"><select id="f_madeIn" onchange="orderData.madeIn=this.value"><option value="">-- Select --</option>${madeInOpts}</select></div></div>
-    </div>
-    <div class="grid-2">
-      <div class="field-row"><span class="field-label">Description</span><div class="field-value"><input type="text" id="f_description" value="${esc(d.description)}" onchange="orderData.description=this.value"></div></div>
-      <div class="field-row"><span class="field-label">Garment Type</span><div class="field-value"><select id="f_garmentType" onchange="orderData.garmentType=this.value">${gtOpts}</select></div></div>
-    </div>
-    <div class="field-row"><span class="field-label">RFID Alarm</span><div class="field-value"><select id="f_rfid" onchange="orderData.rfidAlarm=this.value==='true'"><option value="true" ${d.rfidAlarm?'selected':''}>True</option><option value="false" ${!d.rfidAlarm?'selected':''}>False</option></select></div></div>
-  `;
+  let fieldsHtml = '<div class="grid-2">';
+  fieldsHtml += '<div class="field-row"><span class="field-label">PO Number</span><div class="field-value"><input type="text" id="f_poNumber" value="' + d.poNumber + '" onchange="orderData.poNumber=this.value"></div></div>';
+  if (!isBershka) {
+    fieldsHtml += '<div class="field-row"><span class="field-label">Hemisphere</span><div class="field-value"><select id="f_hemisphere" onchange="orderData.hemisphere=this.value"><option value="North" ' + (d.hemisphere==='North'?'selected':'') + '>North</option><option value="South" ' + (d.hemisphere==='South'?'selected':'') + '>South</option></select></div></div>';
+  }
+  fieldsHtml += '</div>';
+  fieldsHtml += '<div class="grid-2">';
+  fieldsHtml += '<div class="field-row"><span class="field-label">Supplier</span><div class="field-value"><input type="text" id="f_supplier" value="' + d.supplier + '" onchange="orderData.supplier=this.value"></div></div>';
+  fieldsHtml += '<div class="field-row"><span class="field-label">Supplier ID</span><div class="field-value"><input type="text" id="f_supplierId" value="' + d.supplierId + '" onchange="orderData.supplierId=this.value"></div></div>';
+  fieldsHtml += '</div>';
+  // Section row — Bershka adds Kids Gender
+  fieldsHtml += '<div class="grid-3">';
+  fieldsHtml += '<div class="field-row"><span class="field-label">Season</span><div class="field-value"><select id="f_season" onchange="orderData.season=this.value">' + seasonOpts + '</select></div></div>';
+  fieldsHtml += '<div class="field-row"><span class="field-label">Section</span><div class="field-value"><select id="f_section" onchange="orderData.section=this.value; updateCollectionOptions(); toggleKidsGender();">' + sectionOpts + '</select></div></div>';
+  fieldsHtml += '<div class="field-row"><span class="field-label">Collection</span><div class="field-value"><select id="f_collection" onchange="orderData.collection=this.value">' + collOpts + '</select></div></div>';
+  fieldsHtml += '</div>';
+  if (isBershka) {
+    fieldsHtml += '<div id="kidsGenderRow" class="grid-3" style="display:' + (d.section === 'KIDS' ? 'grid' : 'none') + ';">';
+    fieldsHtml += '<div class="field-row"><span class="field-label">Kids Gender</span><div class="field-value"><select id="f_kidsGender" onchange="orderData.kidsGender=this.value"><option value="BOY" ' + (d.kidsGender==='BOY'?'selected':'') + '>Boy</option><option value="GIRL" ' + (d.kidsGender==='GIRL'?'selected':'') + '>Girl</option></select></div></div>';
+    fieldsHtml += '</div>';
+  }
+  fieldsHtml += '<div class="grid-2">';
+  fieldsHtml += '<div class="field-row"><span class="field-label">Article (Model/Quality)</span><div class="field-value"><input type="text" id="f_article" value="' + d.article + '" onchange="orderData.article=this.value; orderData.modelId=this.value.split(\'/\')[0]; orderData.qualityId=this.value.split(\'/\')[1];"></div></div>';
+  fieldsHtml += '<div class="field-row"><span class="field-label">Made In</span><div class="field-value"><select id="f_madeIn" onchange="orderData.madeIn=this.value"><option value="">-- Select --</option>' + madeInOpts + '</select></div></div>';
+  fieldsHtml += '</div>';
+  fieldsHtml += '<div class="grid-2">';
+  fieldsHtml += '<div class="field-row"><span class="field-label">Description</span><div class="field-value"><input type="text" id="f_description" value="' + esc(d.description) + '" onchange="orderData.description=this.value"></div></div>';
+  fieldsHtml += '<div class="field-row"><span class="field-label">Garment Type</span><div class="field-value"><select id="f_garmentType" onchange="orderData.garmentType=this.value">' + gtOpts + '</select></div></div>';
+  fieldsHtml += '</div>';
+  fieldsHtml += '<div class="field-row"><span class="field-label">RFID Alarm</span><div class="field-value"><select id="f_rfid" onchange="orderData.rfidAlarm=this.value===\'true\'"><option value="true" ' + (d.rfidAlarm?'selected':'') + '>True</option><option value="false" ' + (!d.rfidAlarm?'selected':'') + '>False</option></select></div></div>';
+  document.getElementById('generalInfoFields').innerHTML = fieldsHtml;
 
   // Prices
   document.getElementById('pricesFields').innerHTML = `
@@ -1154,19 +1324,30 @@ function renderGeneralInfo() {
 
 function renderPriceInputs() {
   const d = orderData;
+  const isBershka = selectedBrand === 'BERSHKA';
   const isBlack = d.priceSystem === 'black';
-  let html = '<div class="grid-2">';
-  html += '<div class="field-row"><span class="field-label">Printed Price 1 (' + (d.printedPrice1Currency || 'GBP') + ')</span><div class="field-value"><input type="text" value="' + d.printedPrice1 + '" onchange="orderData.printedPrice1=this.value"></div></div>';
-  html += '<div class="field-row"><span class="field-label">Printed Price 2 (' + (d.printedPrice2Currency || 'USD') + ')</span><div class="field-value"><input type="text" value="' + d.printedPrice2 + '" onchange="orderData.printedPrice2=this.value"></div></div>';
-  html += '</div><div class="grid-2">';
+  let html = '';
+  // Zara: printed prices row
+  if (!isBershka) {
+    html += '<div class="grid-2">';
+    html += '<div class="field-row"><span class="field-label">Printed Price 1 (' + (d.printedPrice1Currency || 'GBP') + ')</span><div class="field-value"><input type="text" value="' + d.printedPrice1 + '" onchange="orderData.printedPrice1=this.value"></div></div>';
+    html += '<div class="field-row"><span class="field-label">Printed Price 2 (' + (d.printedPrice2Currency || 'USD') + ')</span><div class="field-value"><input type="text" value="' + d.printedPrice2 + '" onchange="orderData.printedPrice2=this.value"></div></div>';
+    html += '</div>';
+  }
+  html += '<div class="grid-2">';
   if (!isBlack) {
-    html += '<div class="field-row"><span class="field-label" style="color:var(--primary)">Blue Price (' + (d.bluePriceCurrency || 'EUR') + ')</span><div class="field-value"><input type="text" value="' + d.bluePrice + '" onchange="orderData.bluePrice=this.value"></div></div>';
-    html += '<div class="field-row"><span class="field-label" style="color:var(--danger)">Red Price (' + (d.redPriceCurrency || 'EUR') + ')</span><div class="field-value"><input type="text" value="' + d.redPrice + '" onchange="orderData.redPrice=this.value"></div></div>';
+    html += '<div class="field-row"><span class="field-label" style="color:var(--primary)">Blue Price (EUR)</span><div class="field-value"><input type="text" value="' + d.bluePrice + '" onchange="orderData.bluePrice=this.value"></div></div>';
+    html += '<div class="field-row"><span class="field-label" style="color:var(--danger)">Red Price (EUR)</span><div class="field-value"><input type="text" value="' + d.redPrice + '" onchange="orderData.redPrice=this.value"></div></div>';
   } else {
-    html += '<div class="field-row"><span class="field-label">Black Price (' + (d.blackPriceCurrency || 'EUR') + ')</span><div class="field-value"><input type="text" value="' + d.blackPrice + '" onchange="orderData.blackPrice=this.value"></div></div>';
+    html += '<div class="field-row"><span class="field-label">Black Price (EUR)</span><div class="field-value"><input type="text" value="' + d.blackPrice + '" onchange="orderData.blackPrice=this.value"></div></div>';
   }
   html += '</div>';
   document.getElementById('priceInputs').innerHTML = html;
+}
+
+function toggleKidsGender() {
+  const row = document.getElementById('kidsGenderRow');
+  if (row) row.style.display = orderData.section === 'KIDS' ? 'grid' : 'none';
 }
 
 function renderOrderTable() {
@@ -1282,7 +1463,9 @@ function updateCollectionOptions() {
 
 function confirmGeneralInfo() {
   orderData.poNumber = document.getElementById('f_poNumber')?.value || orderData.poNumber;
-  orderData.hemisphere = document.getElementById('f_hemisphere')?.value || orderData.hemisphere;
+  if (selectedBrand !== 'BERSHKA') {
+    orderData.hemisphere = document.getElementById('f_hemisphere')?.value || orderData.hemisphere;
+  }
   orderData.supplier = document.getElementById('f_supplier')?.value || orderData.supplier;
   orderData.supplierId = document.getElementById('f_supplierId')?.value || orderData.supplierId;
   orderData.season = document.getElementById('f_season')?.value || orderData.season;
@@ -1291,6 +1474,9 @@ function confirmGeneralInfo() {
   orderData.madeIn = document.getElementById('f_madeIn')?.value || orderData.madeIn;
   orderData.garmentType = document.getElementById('f_garmentType')?.value || orderData.garmentType;
   orderData.rfidAlarm = document.getElementById('f_rfid')?.value === 'true';
+  if (selectedBrand === 'BERSHKA') {
+    orderData.kidsGender = document.getElementById('f_kidsGender')?.value || orderData.kidsGender || '';
+  }
 
   if (!orderData.poNumber || !orderData.section || !orderData.collection) {
     showToast('Please fill in PO Number, Section and Collection', 'warning');
@@ -1804,6 +1990,7 @@ function confirmSizeRange() {
 function generateCSVPreview() {
   const rows = [];
   const d = orderData;
+  const isBershka = selectedBrand === 'BERSHKA';
   const compFields = buildCompositionFields();
 
   for (const lr of d.labelRefs) {
@@ -1816,41 +2003,46 @@ function generateCSVPreview() {
       for (const size of d.sizes) {
         const qty = d.quantities[color.code]?.[size] || 0;
         if (qty === 0) continue;
-        rows.push({
+        const row = {
+          Brand: selectedBrand,
           PONumber: d.poNumber,
           ProviderId: d.supplierId,
           ProviderName: d.supplier,
           Season: d.season,
           Section: d.section,
           Collection: d.collection,
-          LabelName: ref,
-          AlarmLogo: (isPrice && d.rfidAlarm) ? 'True' : (isPrice ? 'False' : ''),
-          MadeIn: d.madeIn,
-          ModelID: d.modelId,
-          QualityID: d.qualityId,
-          ColorID: color.code,
-          GarmentType: d.garmentType,
-          GarmentDescription: d.description,
-          SizeID: size,
-          SizeRange: d.sizeRange,
-          FirstSize: d.firstSize,
-          LastSize: d.lastSize,
-          SizeQuantity: qty,
-          Hemisphere: d.hemisphere,
-          PrintedPrice1: isPrice ? d.printedPrice1 : '',
-          PrintedPrice1Currency: isPrice ? d.printedPrice1Currency : '',
-          PrintedPrice2: isPrice ? d.printedPrice2 : '',
-          PrintedPrice2Currency: isPrice ? d.printedPrice2Currency : '',
-          BluePrice: isPrice ? d.bluePrice : '',
-          BluePriceCurrency: isPrice ? d.bluePriceCurrency : '',
-          RedPrice: isPrice ? d.redPrice : '',
-          RedPriceCurrency: isPrice ? d.redPriceCurrency : '',
-          BlackPrice: isPrice ? d.blackPrice : '',
-          BlackPriceCurrency: isPrice ? d.blackPriceCurrency : '',
-          ...compFields,
-          CareInstructions: (isCL || prefix === 'SP') ? d.careInstructions : '',
-          AdditionalCare: (isCL || prefix === 'SP') ? d.additionalCare : ''
-        });
+        };
+        if (isBershka && d.section === 'KIDS') row.KidsGender = d.kidsGender || '';
+        row.LabelName = ref;
+        row.AlarmLogo = (isPrice && d.rfidAlarm) ? 'True' : (isPrice ? 'False' : '');
+        row.MadeIn = d.madeIn;
+        row.ModelID = d.modelId;
+        row.QualityID = d.qualityId;
+        row.ColorID = color.code;
+        row.GarmentType = d.garmentType;
+        row.GarmentDescription = d.description;
+        row.SizeID = size;
+        row.SizeRange = d.sizeRange;
+        row.FirstSize = d.firstSize;
+        row.LastSize = d.lastSize;
+        row.SizeQuantity = qty;
+        if (!isBershka) {
+          row.Hemisphere = d.hemisphere;
+          row.PrintedPrice1 = isPrice ? d.printedPrice1 : '';
+          row.PrintedPrice1Currency = isPrice ? d.printedPrice1Currency : '';
+          row.PrintedPrice2 = isPrice ? d.printedPrice2 : '';
+          row.PrintedPrice2Currency = isPrice ? d.printedPrice2Currency : '';
+        }
+        row.BluePrice = isPrice ? d.bluePrice : '';
+        row.BluePriceCurrency = isPrice ? (d.bluePriceCurrency || 'EUR') : '';
+        row.RedPrice = isPrice ? d.redPrice : '';
+        row.RedPriceCurrency = isPrice ? (d.redPriceCurrency || 'EUR') : '';
+        row.BlackPrice = isPrice ? d.blackPrice : '';
+        row.BlackPriceCurrency = isPrice ? (d.blackPriceCurrency || 'EUR') : '';
+        Object.assign(row, compFields);
+        row.CareInstructions = (isCL || prefix === 'SP') ? d.careInstructions : '';
+        row.AdditionalCare = (isCL || prefix === 'SP') ? d.additionalCare : '';
+        rows.push(row);
       }
     }
   }
@@ -1954,7 +2146,7 @@ function showStatusIcon(spanId, success) {
 // ============================================================
 // INIT
 // ============================================================
-const APP_VERSION = 'v2.5.0';
+const APP_VERSION = 'v3.0.0';
 const APP_BUILD = '2026-03-10';
 document.addEventListener('DOMContentLoaded', () => {
   setupFileHandlers();
