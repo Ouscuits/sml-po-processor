@@ -207,7 +207,7 @@ select { cursor: pointer; background: var(--surface); }
     <p class="subtitle">Sign in with your SML account</p>
     <div class="form-group">
       <label>Email</label>
-      <input type="email" id="loginEmail" placeholder="name@smlgroup.com" onkeydown="if(event.key==='Enter')doLogin()">
+      <input type="email" id="loginEmail" placeholder="email@example.com" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
     <div class="form-group">
       <label>Password</label>
@@ -215,7 +215,6 @@ select { cursor: pointer; background: var(--surface); }
     </div>
     <button class="btn btn-primary" onclick="doLogin()">Sign In</button>
     <div class="login-error" id="loginError"></div>
-    <div class="login-domain">Only @smlgroup.com accounts</div>
   </div>
 </div>
 
@@ -505,7 +504,7 @@ function doLogin() {
   const errEl = document.getElementById('loginError');
   errEl.style.display = 'none';
   if (!email || !pw) { errEl.textContent = 'Please enter email and password'; errEl.style.display = 'block'; return; }
-  if (!email.endsWith('@smlgroup.com')) { errEl.textContent = 'Only @smlgroup.com emails are allowed'; errEl.style.display = 'block'; return; }
+
   auth.signInWithEmailAndPassword(email, pw).catch(err => {
     errEl.textContent = err.code === 'auth/invalid-credential' ? 'Invalid email or password' : err.message;
     errEl.style.display = 'block';
